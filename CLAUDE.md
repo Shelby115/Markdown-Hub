@@ -227,7 +227,19 @@ additional card types, "Add as New Page", persisted conversation history).
 - The `/published/:slug` route is intentionally unauthenticated and only ever resolves
   wiki-links within a published page to *other published pages* — it never exposes
   filesystem paths or the existence of unpublished content.
-  
+- **Editing an `OidcProvider` isn't guarded the way deleting/disabling the last one is** -
+  `OidcProvidersController.Update` will happily save a Client ID/Audience/Authority that
+  doesn't match what the IdP actually issues, even if it's the only enabled provider, locking
+  every user (including admins) out with no way back in through the UI. Full user-facing
+  recovery steps are in ReadMe.md's "Managing providers after setup" section - the short
+  version if you're fixing this from a Claude session: the fix is a direct `UPDATE` on the
+  `OidcProviders` table in the SQLite db inside the `db-data` Docker volume (`/data/db/
+  markdown-hub.db`), via a throwaway `alpine`+`sqlite3` container the same way any other
+  direct-DB fix in this project gets done - then **`docker compose restart api`**, since
+  `OidcProviderValidationService` caches the enabled-provider list in memory for up to 60
+  seconds (longer if nothing triggers a refresh), so the DB fix alone can look like it didn't
+  work until the API process actually restarts.
+
 ## To Do list
 
 Nothing outstanding - the last remaining items (folder deletion, the History dialog's button

@@ -100,9 +100,48 @@ Two ways, don't need both:
 
 Admin → OIDC providers: add/edit/enable/disable/delete providers at runtime, no restart or env
 changes needed. **At least one enabled provider must always exist** — the app refuses to
-delete or disable the last one, so you can't lock yourself out this way once you're past first
+delete or disable the last one, so you can't lock yourself out *that* way once you're past first
 boot. With more than one enabled provider, the login screen shows a picker instead of
 auto-redirecting.
+
+**That safety net does not cover *editing* a provider.** Updating an existing (possibly your
+only) provider's Client ID/Audience/Authority to something that doesn't match what your IdP
+actually issues locks out everyone immediately, including admins - there's no equivalent "don't
+save if this breaks the last working provider" check on Update, and if it's your only provider
+you can no longer reach Admin to undo it through the UI.
+
+**Safer pattern:** when changing an *already-working* provider's settings (e.g. switching to a
+new IdP client), add the new configuration as a **second, separate provider** first and leave
+the old one enabled. Test signing in with the new one from the login screen's picker. Only once
+that works, disable/delete the old provider. Editing a working provider in place should be a
+last resort, not the default move.
+
+**If you do lock yourself out** (every provider now issues tokens the app rejects, so nobody -
+not even an admin - can sign in to fix it from Admin): the fix has to happen directly against
+the database, since there's no other way in.
+
+1. Find the API's SQLite database. In the default Docker Compose setup it's inside the
+   `db-data` named volume (`<project-name>_db-data`; the exact name depends on your Compose
+   project/folder name - `docker volume ls` will show it) as `/data/db/markdown-hub.db`.
+2. Inspect the `OidcProviders` table and fix whichever column is wrong (usually `Audience` or
+   `ClientId`) to match what your identity provider's client is actually configured to issue,
+   e.g. via a throwaway container:
+   ```bash
+   docker run --rm -v <project-name>_db-data:/db alpine sh -c \
+     "apk add --no-cache sqlite && sqlite3 /db/markdown-hub.db \
+      \"SELECT * FROM OidcProviders;\""
+   ```
+   then, once you know what's wrong:
+   ```bash
+   docker run --rm -v <project-name>_db-data:/db alpine sh -c \
+     "apk add --no-cache sqlite && sqlite3 /db/markdown-hub.db \
+      \"UPDATE OidcProviders SET Audience = 'the-correct-value' WHERE Id = <id>;\""
+   ```
+3. **Restart the `api` container** (`docker compose restart api`). The corrected row alone
+   isn't enough - provider config is cached in memory for up to 60 seconds per request and
+   indefinitely if nothing triggers a refresh, so a stale rejection can otherwise persist well
+   past when the database itself is already fixed, making the fix look like it didn't work.
+4. Try signing in again from a fresh page load.
 
 ### Other gotchas
 
