@@ -1,0 +1,52 @@
+services:
+  api:
+    build:
+      context: ./backend/MarkdownHub.Api
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      # Seeds the first OIDC provider on a brand-new database (see README) - after that it's
+      # managed entirely through the admin page, and these env vars are no longer read.
+      OidcDefault__Name: ${OIDC_DEFAULT_NAME:-Default}
+      OidcDefault__Authority: ${OIDC_DEFAULT_AUTHORITY:-}
+      OidcDefault__ClientId: ${OIDC_DEFAULT_CLIENT_ID:-}
+      OidcDefault__Audience: ${OIDC_DEFAULT_AUDIENCE:-}
+      OidcDefault__RequireHttpsMetadata: ${OIDC_DEFAULT_REQUIRE_HTTPS_METADATA:-true}
+      # Guarantees this username becomes an administrator on first sign-in - important so
+      # you're not locked out waiting to be the "first user ever" on a fresh install. Optional.
+      Admin__SeedUsername: ${ADMIN_USERNAME:-}
+      Hub__MarkdownRoot: /data/markdown
+      Hub__BackupLocation: /data/backups
+      Ai__Ollama__BaseUrl: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      Ai__Ollama__Model: ${OLLAMA_MODEL:-gpt-oss:20b}
+      ConnectionStrings__Default: "Data Source=/data/db/markdown-hub.db"
+      Cors__AllowedOrigins__0: http://localhost:5173
+      Cors__AllowedOrigins__1: http://localhost:${FRONTEND_PORT:-8086}
+      Cors__AllowedOrigins__2: ${FRONTEND_ORIGIN:-}
+    volumes:
+      - ${HUB_HOST_PATH:-./data/markdown}:/data/markdown
+      - backup-data:/data/backups
+      - db-data:/data/db
+    ports:
+      - "${API_PORT:-8085}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8086}:80"
+    depends_on:
+      - api
+
+volumes:
+  backup-data:
+  db-data:
+
+# Need something host-specific this file shouldn't hardcode for everyone (e.g. an extra_hosts
+# entry to work around a NAT hairpin issue reaching your own domain from inside the container)?
+# Add a docker-compose.override.yml next to this file - Compose merges it automatically, and
+# it's gitignored so it stays local to this machine.

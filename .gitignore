@@ -1,0 +1,18 @@
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.user
+
+# Node
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Data
+*.db
+*.db-shm
+*.db-wal
+
+# Env
+.env
+docker-compose.override.yml
