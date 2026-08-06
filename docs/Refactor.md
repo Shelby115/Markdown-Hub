@@ -52,7 +52,7 @@ Review existing comments and XML documentation.
 * Keep XML documentation short, properly formatted, and useful to a human reader.
 * Do not remove documentation that communicates important public API behavior or non-obvious constraints.
 
-## 5. Apply the Coding Standards
+## 5. Apply the Coding Standards ✅ (`67c39d8`)
 
 Review the refactored code against the newly established coding standards and correct violations.
 
