@@ -89,7 +89,7 @@ run the API separately, e.g. `dotnet run` from `backend/MarkdownHub.Api`).
 ## What's implemented
 
 - **Local-first authentication redesign** (see `Auth.md` for the full design spec):
-  username/password is the foundation (`Controllers/AuthController.cs`, `MeController.cs`),
+  username/password is the foundation (`Controllers/AuthController.cs`, `AccountController.cs`),
   with any number of external OIDC/OAuth2 providers as optional *linked* identities on top
   (`AuthenticationIdentity`, `Services/ExternalAuthService.cs`) rather than the sole identity
   system. The server performs the OIDC/OAuth2 authorization-code exchange itself (confidential
@@ -230,7 +230,7 @@ additional card types, "Add as New Page", persisted conversation history).
   wiki-links within a published page to *other published pages* — it never exposes
   filesystem paths or the existence of unpublished content.
 - **Editing an `AuthenticationProvider` isn't guarded the way deleting/disabling the last one
-  is** - `AuthenticationProvidersController.Update` will happily save a Client ID/Authority/
+  is** - `AuthProvidersController.Update` will happily save a Client ID/Authority/
   endpoint that doesn't match what the provider actually issues. Unlike the old design, this can
   no longer lock everyone out on its own, since local username/password sign-in is always
   available regardless of provider state (Auth.md §9/§31.7) - the practical impact is limited to

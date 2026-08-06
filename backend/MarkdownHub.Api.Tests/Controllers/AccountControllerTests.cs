@@ -9,14 +9,14 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Tests.Controllers;
 
-public class MeControllerTests : IDisposable
+public class AccountControllerTests : IDisposable
 {
     private readonly AppDbContext _db;
-    private readonly MeController _sut;
+    private readonly AccountController _sut;
     private readonly AppUser _user;
     private readonly IPasswordHasher<AppUser> _hasher = new PasswordHasher<AppUser>();
 
-    public MeControllerTests()
+    public AccountControllerTests()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -41,9 +41,9 @@ public class MeControllerTests : IDisposable
         var currentUser = new CurrentUserService(_db, httpContextAccessor);
         var audit = new AuditLogService(_db, httpContextAccessor);
         var safety = new AccountSafetyService(_db);
-        _sut = new MeController(currentUser, _db, audit, _hasher, safety)
+        _sut = new AccountController(currentUser, _db, audit, _hasher, safety)
         {
-            // MeController reads claims via ControllerBase.User (HttpContext.User), not via the
+            // AccountController reads claims via ControllerBase.User (HttpContext.User), not via the
             // separately-constructed IHttpContextAccessor above - both must point at the same
             // HttpContext for CurrentSessionId to resolve during a test.
             ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = httpContextAccessor.HttpContext! },
@@ -139,7 +139,7 @@ public class MeControllerTests : IDisposable
         var currentUser = new CurrentUserService(_db, httpContextAccessor);
         var audit = new AuditLogService(_db, httpContextAccessor);
         var safety = new AccountSafetyService(_db);
-        var sut = new MeController(currentUser, _db, audit, _hasher, safety)
+        var sut = new AccountController(currentUser, _db, audit, _hasher, safety)
         {
             ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = httpContextAccessor.HttpContext! },
         };

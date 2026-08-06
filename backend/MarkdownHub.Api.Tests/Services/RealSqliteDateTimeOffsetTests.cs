@@ -100,11 +100,11 @@ public class RealSqliteDateTimeOffsetTests : IAsyncLifetime
     }
 
     /// <summary>Caught during manual Docker verification of the auth redesign (not by the
-    /// InMemory-backed MeControllerTests): GetSessions originally ordered by LastActivityAt
+    /// InMemory-backed AccountControllerTests): GetSessions originally ordered by LastActivityAt
     /// (DateTimeOffset) directly in the query, which throws against real SQLite the same way the
     /// methods above do.</summary>
     [Fact]
-    public async Task MeController_GetSessions_WorksAgainstRealSqlite()
+    public async Task AccountController_GetSessions_WorksAgainstRealSqlite()
     {
         var user = new AppUser { Username = "alice", NormalizedUsername = "ALICE" };
         _db.Users.Add(user);
@@ -120,7 +120,7 @@ public class RealSqliteDateTimeOffsetTests : IAsyncLifetime
                 User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())]))
             }
         };
-        var sut = new MeController(
+        var sut = new AccountController(
             new CurrentUserService(_db, httpContextAccessor), _db, new AuditLogService(_db, httpContextAccessor),
             new PasswordHasher<AppUser>(), new AccountSafetyService(_db))
         {

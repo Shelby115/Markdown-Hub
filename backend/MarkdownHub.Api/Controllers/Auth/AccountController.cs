@@ -18,7 +18,7 @@ public record SessionResponse(Guid Id, DateTimeOffset CreatedAt, DateTimeOffset 
 [ApiController]
 [Route("api/me")]
 [Authorize]
-public class MeController : ControllerBase
+public class AccountController : ControllerBase
 {
     public const int MinPasswordLength = 8;
     public const int MaxPasswordLength = 256;
@@ -29,7 +29,7 @@ public class MeController : ControllerBase
     private readonly IPasswordHasher<AppUser> _hasher;
     private readonly AccountSafetyService _safety;
 
-    public MeController(CurrentUserService currentUser, AppDbContext db, AuditLogService audit,
+    public AccountController(CurrentUserService currentUser, AppDbContext db, AuditLogService audit,
         IPasswordHasher<AppUser> hasher, AccountSafetyService safety)
     {
         _currentUser = currentUser;

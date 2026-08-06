@@ -79,8 +79,8 @@ public class UsersController : ControllerBase
         var temporaryPassword = string.IsNullOrEmpty(request.TemporaryPassword)
             ? GenerateTemporaryPassword()
             : request.TemporaryPassword;
-        if (temporaryPassword.Length < MeController.MinPasswordLength)
-            return BadRequest($"Temporary password must be at least {MeController.MinPasswordLength} characters.");
+        if (temporaryPassword.Length < AccountController.MinPasswordLength)
+            return BadRequest($"Temporary password must be at least {AccountController.MinPasswordLength} characters.");
 
         var user = new AppUser
         {
@@ -102,8 +102,8 @@ public class UsersController : ControllerBase
     {
         var user = await _db.Users.FindAsync([id], ct);
         if (user is null) return NotFound();
-        if (request.NewPassword.Length < MeController.MinPasswordLength || request.NewPassword.Length > MeController.MaxPasswordLength)
-            return BadRequest($"Password must be between {MeController.MinPasswordLength} and {MeController.MaxPasswordLength} characters.");
+        if (request.NewPassword.Length < AccountController.MinPasswordLength || request.NewPassword.Length > AccountController.MaxPasswordLength)
+            return BadRequest($"Password must be between {AccountController.MinPasswordLength} and {AccountController.MaxPasswordLength} characters.");
 
         user.PasswordHash = _hasher.HashPassword(user, request.NewPassword);
         user.UpdatedAt = DateTimeOffset.UtcNow;
