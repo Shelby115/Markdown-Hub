@@ -16,3 +16,4 @@ frontend/dist/
 # Env
 .env
 docker-compose.override.yml
+/.vs
