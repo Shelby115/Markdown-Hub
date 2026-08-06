@@ -2,7 +2,7 @@
 
 Complete each step independently. **Test and commit the changes after each step before proceeding to the next step.** Do not combine steps into a single commit.
 
-## 1. Organize Classes
+## 1. Organize Classes ✅ (`faf71c1`)
 
 Organize controllers, models, services, and other applicable classes into common category folders such as `Admin`, `AI`, `Auth`, etc.
 
