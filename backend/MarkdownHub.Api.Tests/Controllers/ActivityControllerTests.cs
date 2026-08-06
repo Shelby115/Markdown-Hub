@@ -22,8 +22,8 @@ public class ActivityControllerTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
 
-        _alice = new AppUser { KeycloakSubjectId = "alice-sub", Username = "alice" };
-        _bob = new AppUser { KeycloakSubjectId = "bob-sub", Username = "bob" };
+        _alice = new AppUser { Username = "alice", NormalizedUsername = "ALICE" };
+        _bob = new AppUser { Username = "bob", NormalizedUsername = "BOB" };
         _db.Users.AddRange(_alice, _bob);
         _db.SaveChanges();
 

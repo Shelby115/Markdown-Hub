@@ -36,7 +36,7 @@ public class PublishController : ControllerBase
     [HttpPost("{**relativePath}")]
     public async Task<IActionResult> SetPublished(string relativePath, [FromBody] PublishRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Edit, ct)) return Forbid();
 

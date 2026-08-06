@@ -1,7 +1,13 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
+using MarkdownHub.Api.Data.Entities;
 using MarkdownHub.Api.Middleware;
 using MarkdownHub.Api.Services;
 
@@ -12,6 +18,9 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? "Data Source=/data/db/markdown-hub.db";
 
 Directory.CreateDirectory(Path.GetDirectoryName(connectionString.Split('=', 2).ElementAtOrDefault(1)?.Trim() ?? "/data/db") ?? "/data/db");
+
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"] ?? "/data/keys";
+Directory.CreateDirectory(dataProtectionKeysPath);
 
 // --- Database ---
 builder.Services.AddDbContext<AppDbContext>(opt => opt.UseSqlite(connectionString));
@@ -34,13 +43,20 @@ builder.Services.AddHostedService<HubFileWatcherService>();
 builder.Services.AddHostedService<ScheduledBackupHostedService>();
 builder.Services.AddHostedService<HistoryCleanupHostedService>();
 
-// --- Auth: OpenID Connect / JWT bearer validation against any enabled OidcProvider ---
-// The SPA performs the interactive OIDC login (authorization code + PKCE) directly against
-// whichever provider the user picked and attaches the resulting access token to API calls; the
-// API's job is purely to validate that bearer token, dynamically, against whichever configured
-// provider actually issued it (see Services/OidcProviderValidationService.cs) - there's no
-// single fixed Authority anymore since providers are DB-configured and editable at runtime.
-builder.Services.AddSingleton<OidcProviderValidationService>();
+// --- Auth: local username/password is the foundation; OIDC/OAuth2 providers are optional
+// linked identities the server authenticates through on the user's behalf (see Auth.md). The
+// app is always the JWT issuer/signer - external provider tokens are exchanged server-side in
+// AuthController and never handed to the browser.
+builder.Services.AddDataProtection()
+    .SetApplicationName("markdown-hub")
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+
+builder.Services.AddSingleton<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
+builder.Services.AddSingleton<JwtSigningKeyProvider>();
+builder.Services.AddSingleton<ProviderSecretProtector>();
+builder.Services.AddScoped<AppTokenService>();
+builder.Services.AddScoped<AccountSafetyService>();
+builder.Services.AddScoped<ExternalAuthService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -52,9 +68,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             // the live editor's media embeds (Services/MarkdownRenderService.cs, liveMarkdown.ts)
             // pass the access token as a query param instead for this one route - scoped to
             // exactly "/api/attachments" (never the whole API) to keep the token's extra exposure
-            // surface (browser history, server access logs) as narrow as possible. This is the
-            // same "access_token in the query string" pattern ASP.NET Core's own docs recommend
-            // for SignalR, for the same underlying reason (no header support on the client side).
+            // surface (browser history, server access logs) as narrow as possible.
             OnMessageReceived = context =>
             {
                 if (string.IsNullOrEmpty(context.Token) &&
@@ -65,16 +79,41 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 }
                 return Task.CompletedTask;
             },
+            // Every app-issued token carries a "sid" claim tied to a Session row - checking it
+            // here (rather than trusting the token's own unexpired signature alone) is what
+            // makes an otherwise-stateless bearer JWT individually revocable: a user or admin
+            // revoking a session, or a password change invalidating other sessions, takes effect
+            // immediately instead of waiting out the token's remaining lifetime.
+            OnTokenValidated = async context =>
+            {
+                var sidClaim = context.Principal?.FindFirstValue("sid");
+                if (!Guid.TryParse(sidClaim, out var sessionId))
+                {
+                    context.Fail("Token is missing a valid session id.");
+                    return;
+                }
+
+                var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+                var session = await db.Sessions.FindAsync(sessionId);
+                if (session is null || !session.IsActive)
+                {
+                    context.Fail("Session has been revoked or has expired.");
+                    return;
+                }
+
+                if (DateTimeOffset.UtcNow - session.LastActivityAt > TimeSpan.FromMinutes(1))
+                {
+                    session.LastActivityAt = DateTimeOffset.UtcNow;
+                    await db.SaveChangesAsync();
+                }
+            },
             OnAuthenticationFailed = async context =>
             {
                 context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>()
-                    .LogError(context.Exception, "JWT authentication failed");
+                    .LogWarning(context.Exception, "JWT authentication failed");
 
-                // Not a "failed login" in the traditional sense - this app never sees password
-                // attempts at all (the provider's own login page handles those entirely outside
-                // this API). This is a rejected/invalid bearer token on an API request, logged as
-                // exactly that. Repeated rejections from the same IP in a short window are
-                // grouped into one row instead of flooding the log with one per request.
+                // Repeated rejections from the same IP in a short window are grouped into one
+                // row instead of flooding the log with one per request.
                 var audit = context.HttpContext.RequestServices.GetRequiredService<AuditLogService>();
                 var ip = context.HttpContext.Connection.RemoteIpAddress?.ToString();
                 await audit.LogGroupedAsync("Auth.TokenRejected", null, "Auth", ip,
@@ -83,19 +122,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// Wired via DI-aware options configuration (rather than inside an event) so the delegates are
-// bound once from OidcProviderValidationService instead of being reassigned on every request.
+// Wired via DI-aware options configuration (rather than inside an event) so the delegate is
+// bound once JwtSigningKeyProvider has been populated (see the startup block below) instead of
+// being reassigned on every request - same idiom the old multi-issuer validation service used.
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-    .Configure<OidcProviderValidationService>((options, validation) =>
+    .Configure<JwtSigningKeyProvider>((options, keyProvider) =>
     {
+        options.TokenValidationParameters.ValidIssuer = AppTokenService.Issuer;
+        options.TokenValidationParameters.ValidAudience = AppTokenService.Audience;
         options.TokenValidationParameters.ValidateIssuer = true;
         options.TokenValidationParameters.ValidateAudience = true;
+        options.TokenValidationParameters.ValidateLifetime = true;
         options.TokenValidationParameters.ValidateIssuerSigningKey = true;
-        options.TokenValidationParameters.IssuerValidator = (issuer, _, _) => validation.ValidateIssuer(issuer);
-        options.TokenValidationParameters.IssuerSigningKeyResolver =
-            (_, securityToken, _, _) => validation.ResolveSigningKeys(securityToken.Issuer);
-        options.TokenValidationParameters.AudienceValidator =
-            (audiences, securityToken, _) => validation.ValidateAudience(audiences, securityToken.Issuer);
+        options.TokenValidationParameters.IssuerSigningKeyResolver = (_, _, _, _) => [keyProvider.GetKey()];
     });
 
 builder.Services.AddAuthorization(options =>
@@ -104,6 +143,22 @@ builder.Services.AddAuthorization(options =>
         policy.Requirements.Add(new RequireAdministratorRequirement()));
 });
 builder.Services.AddSingleton<IAuthorizationHandler, AdministratorAuthorizationHandler>();
+
+// Local login is rate-limited per source IP to slow down password guessing (Auth.md §21) -
+// deliberately a short queue-less fixed window (reject immediately over the limit) rather than
+// a permanent lockout, which could itself become a denial-of-service vector.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            Window = TimeSpan.FromMinutes(1),
+            PermitLimit = 10,
+            QueueLimit = 0,
+        }));
+});
 
 // --- CORS for the SPA dev server / separately-hosted frontend ---
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -122,15 +177,41 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// --- Migrate / ensure DB schema + FTS index exist on startup ---
+// --- Migrate / ensure DB schema + FTS index exist, seed the admin account, and resolve the JWT
+// signing key on startup ---
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var search = scope.ServiceProvider.GetRequiredService<SearchIndexService>();
     await DatabaseMigrations.ApplyAsync(db, search);
-    await StartupSeeder.SeedDefaultOidcProviderAsync(db, app.Configuration);
-    await StartupSeeder.SeedAdminAsync(db, app.Configuration);
+
+    var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<AppUser>>();
+    await StartupSeeder.SeedAdminAsync(db, app.Configuration, passwordHasher);
+
+    var secretProtector = scope.ServiceProvider.GetRequiredService<ProviderSecretProtector>();
+    await StartupSeeder.SeedDefaultProviderAsync(db, app.Configuration, secretProtector);
+
+    // Resolved once here (rather than per-request) since there is now exactly one fixed
+    // self-issued signing key, unlike the old per-provider dynamic key resolution.
+    var tokenService = scope.ServiceProvider.GetRequiredService<AppTokenService>();
+    var signingKey = await tokenService.GetSigningKeyAsync();
+    app.Services.GetRequiredService<JwtSigningKeyProvider>().SetKey(signingKey);
 }
+
+// Must run before anything that reads Request.Scheme/Request.Host (HTTPS redirection, and
+// AuthController's OIDC/OAuth2 callback redirect_uri construction) - the frontend's nginx proxies
+// /api to this container over plain HTTP, so without trusting its X-Forwarded-* headers the app
+// has no way to know the original request was actually HTTPS. KnownNetworks/KnownProxies are
+// cleared because the proxy is a same-Docker-network container, not a fixed known IP.
+var forwardedHeadersOptions = new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost,
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 if (app.Environment.IsDevelopment())
 {
@@ -151,6 +232,7 @@ else
 
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

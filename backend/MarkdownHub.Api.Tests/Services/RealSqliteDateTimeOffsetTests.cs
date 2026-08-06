@@ -1,6 +1,10 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MarkdownHub.Api.Controllers;
+using MarkdownHub.Api.Controllers.Auth;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Data.Entities;
 using MarkdownHub.Api.Services;
@@ -91,5 +95,41 @@ public class RealSqliteDateTimeOffsetTests : IAsyncLifetime
 
         var page = Assert.IsType<ActivityPageDto>(Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(result).Value);
         Assert.Single(page.Items); // only the 1-day-old entry falls inside the 3-day window
+    }
+
+    /// <summary>Caught during manual Docker verification of the auth redesign (not by the
+    /// InMemory-backed MeControllerTests): GetSessions originally ordered by LastActivityAt
+    /// (DateTimeOffset) directly in the query, which throws against real SQLite the same way the
+    /// methods above do.</summary>
+    [Fact]
+    public async Task MeController_GetSessions_WorksAgainstRealSqlite()
+    {
+        var user = new AppUser { Username = "alice", NormalizedUsername = "ALICE" };
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+        _db.Sessions.Add(new Session { UserId = user.Id, ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), LastActivityAt = DateTimeOffset.UtcNow.AddMinutes(-10) });
+        _db.Sessions.Add(new Session { UserId = user.Id, ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), LastActivityAt = DateTimeOffset.UtcNow });
+        await _db.SaveChangesAsync();
+
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())]))
+            }
+        };
+        var sut = new MeController(
+            new CurrentUserService(_db, httpContextAccessor), _db, new AuditLogService(_db, httpContextAccessor),
+            new PasswordHasher<AppUser>(), new AccountSafetyService(_db))
+        {
+            ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext { HttpContext = httpContextAccessor.HttpContext },
+        };
+
+        var result = await sut.GetSessions(CancellationToken.None);
+
+        var sessions = Assert.IsAssignableFrom<IEnumerable<SessionResponse>>(
+            Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(result).Value).ToList();
+        Assert.Equal(2, sessions.Count);
+        Assert.True(sessions[0].LastActivityAt >= sessions[1].LastActivityAt); // most recent first
     }
 }

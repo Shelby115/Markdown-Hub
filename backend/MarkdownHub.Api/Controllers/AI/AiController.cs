@@ -32,7 +32,7 @@ public class AiController : ControllerBase
     [HttpPost("edit")]
     public async Task<IActionResult> Edit([FromBody] AiEditRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         if (!Enum.TryParse<AiEditAction>(request.Action, ignoreCase: true, out var action))

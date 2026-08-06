@@ -41,7 +41,7 @@ public class AttachmentsController : ControllerBase
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> Upload([FromQuery] string folder, IFormFile file, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.Edit, ct)) return Forbid();
 
@@ -86,7 +86,7 @@ public class AttachmentsController : ControllerBase
     [HttpGet("resolve")]
     public async Task<IActionResult> Resolve([FromQuery] string filename, [FromQuery] string? from, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (string.IsNullOrWhiteSpace(filename)) return NotFound();
 
@@ -104,7 +104,7 @@ public class AttachmentsController : ControllerBase
     [HttpGet("{**relativePath}")]
     public async Task<IActionResult> GetAttachment(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         var folder = Path.GetDirectoryName(relativePath)?.Replace('\\', '/') ?? "";

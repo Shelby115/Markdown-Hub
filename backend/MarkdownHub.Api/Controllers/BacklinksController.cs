@@ -28,7 +28,7 @@ public class BacklinksController : ControllerBase
     [HttpGet("{**relativePath}")]
     public async Task<IActionResult> GetBacklinks(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct)) return Forbid();
 

@@ -24,7 +24,7 @@ public class SearchController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Search([FromQuery] string q, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (string.IsNullOrWhiteSpace(q)) return Ok(Array.Empty<object>());
 

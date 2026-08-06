@@ -4,14 +4,39 @@ import {
   AdminFolderPermission,
   AdminUser,
   AiSettings,
+  AuthenticationProvider,
   HistorySettings,
-  OidcProvider,
+  PROVIDER_TYPE_LABELS,
+  ProviderConfiguration,
+  ProviderPreset,
+  SaveAuthenticationProviderRequest,
   PERMISSION_LEVEL_LABELS,
   api,
   extractErrorMessage,
 } from "../api/client";
 
-const EMPTY_PROVIDER_FORM = { name: "", authority: "", clientId: "", audience: "", requireHttpsMetadata: true };
+const EMPTY_CONFIGURATION: ProviderConfiguration = {
+  authority: "",
+  requireHttpsMetadata: true,
+  audience: "",
+  authorizationEndpoint: "",
+  tokenEndpoint: "",
+  userInfoEndpoint: "",
+  scopes: "openid profile email",
+  userIdField: "sub",
+  emailField: "email",
+  nameField: "name",
+  autoProvision: 0,
+};
+
+const EMPTY_PROVIDER_FORM: SaveAuthenticationProviderRequest = {
+  name: "",
+  displayName: "",
+  type: 0,
+  clientId: "",
+  clientSecret: "",
+  configuration: EMPTY_CONFIGURATION,
+};
 
 function formatDate(value: string | null) {
   if (!value) return "Never";
@@ -33,6 +58,10 @@ export function Admin() {
   const [newUsername, setNewUsername] = useState("");
   const [newUserIsAdmin, setNewUserIsAdmin] = useState(false);
   const [createUserBusy, setCreateUserBusy] = useState(false);
+  const [createdTempPassword, setCreatedTempPassword] = useState<{ username: string; password: string } | null>(null);
+  const [resetPasswordUserId, setResetPasswordUserId] = useState<number | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetPasswordBusy, setResetPasswordBusy] = useState(false);
 
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
   const [aiModels, setAiModels] = useState<string[] | null>(null);
@@ -44,13 +73,13 @@ export function Admin() {
   const [historyForm, setHistoryForm] = useState<HistorySettings | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
 
-  const [providers, setProviders] = useState<OidcProvider[] | null>(null);
-  const [providerForm, setProviderForm] = useState(EMPTY_PROVIDER_FORM);
+  const [providers, setProviders] = useState<AuthenticationProvider[] | null>(null);
+  const [presets, setPresets] = useState<ProviderPreset[]>([]);
+  const [providerForm, setProviderForm] = useState<SaveAuthenticationProviderRequest>(EMPTY_PROVIDER_FORM);
   const [providerBusy, setProviderBusy] = useState(false);
   const [busyProviderId, setBusyProviderId] = useState<number | null>(null);
 
   const adminCount = users?.filter((u) => u.isAdministrator).length ?? 0;
-  const enabledProviderCount = providers?.filter((p) => p.isEnabled).length ?? 0;
 
   const load = async () => {
     try {
@@ -93,9 +122,14 @@ export function Admin() {
 
   const loadProviders = async () => {
     try {
-      setProviders(await api.adminListOidcProviders());
+      setProviders(await api.adminListAuthProviders());
     } catch (err) {
-      setError(extractErrorMessage(err, "Couldn't load OIDC providers."));
+      setError(extractErrorMessage(err, "Couldn't load authentication providers."));
+    }
+    try {
+      setPresets(await api.adminGetProviderPresets());
+    } catch {
+      setPresets([]);
     }
   };
 
@@ -151,13 +185,31 @@ export function Admin() {
     setError(null);
     try {
       const created = await api.adminCreateUser(username, newUserIsAdmin);
-      setUsers((prev) => (prev ? [...prev, created] : [created]));
+      setUsers(await api.adminListUsers());
+      setCreatedTempPassword({ username: created.username, password: created.temporaryPassword });
       setNewUsername("");
       setNewUserIsAdmin(false);
     } catch (err) {
       setError(extractErrorMessage(err, "Couldn't create that user."));
     } finally {
       setCreateUserBusy(false);
+    }
+  };
+
+  const submitResetPassword = async (event: FormEvent) => {
+    event.preventDefault();
+    if (resetPasswordUserId === null || resetPasswordValue.length < 8) return;
+    setResetPasswordBusy(true);
+    setError(null);
+    try {
+      await api.adminSetUserPassword(resetPasswordUserId, resetPasswordValue);
+      setUsers(await api.adminListUsers());
+      setResetPasswordUserId(null);
+      setResetPasswordValue("");
+    } catch (err) {
+      setError(extractErrorMessage(err, "Couldn't reset that user's password."));
+    } finally {
+      setResetPasswordBusy(false);
     }
   };
 
@@ -204,28 +256,39 @@ export function Admin() {
     }
   };
 
+  const applyPreset = (preset: ProviderPreset) => {
+    setProviderForm({
+      name: preset.key,
+      displayName: preset.displayName,
+      type: preset.type,
+      clientId: "",
+      clientSecret: "",
+      configuration: preset.configuration,
+    });
+  };
+
   const submitCreateProvider = async (event: FormEvent) => {
     event.preventDefault();
     setProviderBusy(true);
     setError(null);
     try {
-      const created = await api.adminCreateOidcProvider(providerForm);
+      const created = await api.adminCreateAuthProvider(providerForm);
       setProviders((prev) => (prev ? [...prev, created] : [created]));
       setProviderForm(EMPTY_PROVIDER_FORM);
     } catch (err) {
-      setError(extractErrorMessage(err, "Couldn't add that OIDC provider."));
+      setError(extractErrorMessage(err, "Couldn't add that provider."));
     } finally {
       setProviderBusy(false);
     }
   };
 
-  const toggleProviderEnabled = async (provider: OidcProvider) => {
+  const toggleProviderEnabled = async (provider: AuthenticationProvider) => {
     setBusyProviderId(provider.id);
     setError(null);
     try {
-      const updated = provider.isEnabled
-        ? await api.adminDisableOidcProvider(provider.id)
-        : await api.adminEnableOidcProvider(provider.id);
+      const updated = provider.enabled
+        ? await api.adminDisableAuthProvider(provider.id)
+        : await api.adminEnableAuthProvider(provider.id);
       setProviders((prev) => prev?.map((p) => (p.id === provider.id ? updated : p)) ?? null);
     } catch (err) {
       setError(extractErrorMessage(err, "Couldn't update that provider."));
@@ -234,11 +297,20 @@ export function Admin() {
     }
   };
 
-  const deleteProvider = async (provider: OidcProvider) => {
+  const deleteProvider = async (provider: AuthenticationProvider) => {
+    if (
+      provider.usersUsingProvider > 0 &&
+      !window.confirm(
+        `This provider is currently used by ${provider.usersUsingProvider} user(s).\n\n` +
+          `Removing it will prevent those users from signing in through this provider. Continue?`
+      )
+    ) {
+      return;
+    }
     setBusyProviderId(provider.id);
     setError(null);
     try {
-      await api.adminDeleteOidcProvider(provider.id);
+      await api.adminDeleteAuthProvider(provider.id);
       setProviders((prev) => prev?.filter((p) => p.id !== provider.id) ?? null);
     } catch (err) {
       setError(extractErrorMessage(err, "Couldn't delete that provider."));
@@ -302,9 +374,9 @@ export function Admin() {
                     <td>
                       {u.isDisabled ? (
                         <span className="admin-badge admin-badge-warn">Disabled</span>
-                      ) : u.isPending ? (
-                        <span className="admin-badge" title="Created by an admin; not yet signed in">
-                          Pending
+                      ) : !u.hasPassword && u.linkedIdentityCount === 0 ? (
+                        <span className="admin-badge" title="Has no password or linked sign-in method yet">
+                          No sign-in method
                         </span>
                       ) : (
                         <span className="admin-badge admin-badge-ok">Active</span>
@@ -329,6 +401,15 @@ export function Admin() {
                       >
                         {u.isDisabled ? "Enable" : "Disable"}
                       </button>
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          setResetPasswordUserId(u.id);
+                          setResetPasswordValue("");
+                        }}
+                      >
+                        Set password
+                      </button>
                     </td>
                   </tr>
                 );
@@ -337,10 +418,40 @@ export function Admin() {
           </table>
         )}
 
+        {resetPasswordUserId !== null && (
+          <form className="admin-grant-form" onSubmit={(e) => void submitResetPassword(e)}>
+            <span className="muted">
+              New password for {users?.find((u) => u.id === resetPasswordUserId)?.username}:
+            </span>
+            <input
+              type="password"
+              placeholder="New password (min 8 characters)"
+              value={resetPasswordValue}
+              onChange={(e) => setResetPasswordValue(e.target.value)}
+            />
+            <button type="submit" disabled={resetPasswordBusy || resetPasswordValue.length < 8}>
+              Save
+            </button>
+            <button type="button" className="secondary" onClick={() => setResetPasswordUserId(null)}>
+              Cancel
+            </button>
+          </form>
+        )}
+
+        {createdTempPassword && (
+          <div className="banner banner-warning">
+            Temporary password for <strong>{createdTempPassword.username}</strong>: <code>{createdTempPassword.password}</code>{" "}
+            — shown once, share it with them now.{" "}
+            <button className="link-button" onClick={() => setCreatedTempPassword(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <form className="admin-grant-form" onSubmit={submitCreateUser}>
           <input
             type="text"
-            placeholder="Username (must match their sign-in provider username)"
+            placeholder="Username"
             value={newUsername}
             onChange={(e) => setNewUsername(e.target.value)}
           />
@@ -349,84 +460,95 @@ export function Admin() {
             Administrator
           </label>
           <button type="submit" disabled={createUserBusy || !newUsername.trim()}>
-            Add user
+            Add user (generates a temporary password)
           </button>
         </form>
       </section>
 
       <section className="admin-section">
-        <h2>OIDC providers</h2>
+        <h2>Authentication providers</h2>
         {!providers ? (
           <p className="muted">Loading…</p>
         ) : (
           <>
             <p className="muted">
-              Identity providers this app accepts sign-ins and tokens from. At least one must stay enabled.
+              Optional external sign-in methods. Local username/password always works regardless of what&apos;s
+              configured here - removing every provider below never locks anyone out.
             </p>
             <table className="admin-table">
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Authority</th>
+                  <th>Type</th>
                   <th>Client ID</th>
-                  <th>Audience</th>
                   <th>Status</th>
+                  <th>Users</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {providers.map((p) => {
-                  const isLastEnabled = p.isEnabled && enabledProviderCount <= 1;
-                  return (
-                    <tr key={p.id}>
-                      <td>{p.name}</td>
-                      <td>{p.authority}</td>
-                      <td>{p.clientId}</td>
-                      <td>{p.audience}</td>
-                      <td>
-                        {p.isEnabled ? (
-                          <span className="admin-badge admin-badge-ok">Enabled</span>
-                        ) : (
-                          <span className="admin-badge admin-badge-warn">Disabled</span>
-                        )}
-                      </td>
-                      <td className="admin-actions">
-                        <button
-                          className="secondary"
-                          disabled={busyProviderId === p.id || isLastEnabled}
-                          title={isLastEnabled ? "At least one enabled OIDC provider is required" : undefined}
-                          onClick={() => toggleProviderEnabled(p)}
-                        >
-                          {p.isEnabled ? "Disable" : "Enable"}
-                        </button>
-                        <button
-                          className="secondary"
-                          disabled={busyProviderId === p.id || isLastEnabled}
-                          title={isLastEnabled ? "At least one enabled OIDC provider is required" : undefined}
-                          onClick={() => deleteProvider(p)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {providers.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.displayName}</td>
+                    <td>{PROVIDER_TYPE_LABELS[p.type] ?? p.type}</td>
+                    <td>{p.clientId}</td>
+                    <td>
+                      {p.enabled ? (
+                        <span className="admin-badge admin-badge-ok">Enabled</span>
+                      ) : (
+                        <span className="admin-badge admin-badge-warn">Disabled</span>
+                      )}
+                      {!p.hasClientSecret && (
+                        <span className="admin-badge admin-badge-warn" title="No client secret configured yet - sign-in through this provider will fail">
+                          No secret
+                        </span>
+                      )}
+                    </td>
+                    <td>{p.usersUsingProvider}</td>
+                    <td className="admin-actions">
+                      <button className="secondary" disabled={busyProviderId === p.id} onClick={() => void toggleProviderEnabled(p)}>
+                        {p.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button className="secondary" disabled={busyProviderId === p.id} onClick={() => void deleteProvider(p)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
 
-            <form className="admin-grant-form" onSubmit={submitCreateProvider}>
+            {presets.length > 0 && (
+              <div className="admin-grant-form">
+                <span className="muted">Presets:</span>
+                {presets.map((preset) => (
+                  <button key={preset.key} type="button" className="secondary" onClick={() => applyPreset(preset)}>
+                    {preset.displayName}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <form className="admin-grant-form" onSubmit={(e) => void submitCreateProvider(e)}>
               <input
                 type="text"
-                placeholder="Name (e.g. Keycloak)"
-                value={providerForm.name}
+                placeholder="Internal name (e.g. keycloak)"
+                value={providerForm.name ?? ""}
                 onChange={(e) => setProviderForm({ ...providerForm, name: e.target.value })}
               />
               <input
                 type="text"
-                placeholder="Authority (issuer URL)"
-                value={providerForm.authority}
-                onChange={(e) => setProviderForm({ ...providerForm, authority: e.target.value })}
+                placeholder="Display name (e.g. Keycloak)"
+                value={providerForm.displayName}
+                onChange={(e) => setProviderForm({ ...providerForm, displayName: e.target.value })}
               />
+              <select value={providerForm.type} onChange={(e) => setProviderForm({ ...providerForm, type: Number(e.target.value) })}>
+                {PROVIDER_TYPE_LABELS.map((label, i) => (
+                  <option key={label} value={i}>
+                    {label}
+                  </option>
+                ))}
+              </select>
               <input
                 type="text"
                 placeholder="Client ID"
@@ -434,28 +556,90 @@ export function Admin() {
                 onChange={(e) => setProviderForm({ ...providerForm, clientId: e.target.value })}
               />
               <input
-                type="text"
-                placeholder="Audience"
-                value={providerForm.audience}
-                onChange={(e) => setProviderForm({ ...providerForm, audience: e.target.value })}
+                type="password"
+                placeholder="Client secret"
+                value={providerForm.clientSecret ?? ""}
+                onChange={(e) => setProviderForm({ ...providerForm, clientSecret: e.target.value })}
               />
-              <label className="template-toggle">
-                <input
-                  type="checkbox"
-                  checked={providerForm.requireHttpsMetadata}
-                  onChange={(e) => setProviderForm({ ...providerForm, requireHttpsMetadata: e.target.checked })}
-                />
-                Require HTTPS
-              </label>
+
+              {providerForm.type === 0 ? (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Authority (issuer URL)"
+                    value={providerForm.configuration.authority ?? ""}
+                    onChange={(e) =>
+                      setProviderForm({ ...providerForm, configuration: { ...providerForm.configuration, authority: e.target.value } })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Audience (optional)"
+                    value={providerForm.configuration.audience ?? ""}
+                    onChange={(e) =>
+                      setProviderForm({ ...providerForm, configuration: { ...providerForm.configuration, audience: e.target.value } })
+                    }
+                  />
+                  <label className="template-toggle">
+                    <input
+                      type="checkbox"
+                      checked={providerForm.configuration.requireHttpsMetadata}
+                      onChange={(e) =>
+                        setProviderForm({
+                          ...providerForm,
+                          configuration: { ...providerForm.configuration, requireHttpsMetadata: e.target.checked },
+                        })
+                      }
+                    />
+                    Require HTTPS
+                  </label>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Authorization endpoint"
+                    value={providerForm.configuration.authorizationEndpoint ?? ""}
+                    onChange={(e) =>
+                      setProviderForm({
+                        ...providerForm,
+                        configuration: { ...providerForm.configuration, authorizationEndpoint: e.target.value },
+                      })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Token endpoint"
+                    value={providerForm.configuration.tokenEndpoint ?? ""}
+                    onChange={(e) =>
+                      setProviderForm({ ...providerForm, configuration: { ...providerForm.configuration, tokenEndpoint: e.target.value } })
+                    }
+                  />
+                  <input
+                    type="text"
+                    placeholder="Userinfo endpoint"
+                    value={providerForm.configuration.userInfoEndpoint ?? ""}
+                    onChange={(e) =>
+                      setProviderForm({
+                        ...providerForm,
+                        configuration: { ...providerForm.configuration, userInfoEndpoint: e.target.value },
+                      })
+                    }
+                  />
+                </>
+              )}
+              <input
+                type="text"
+                placeholder="Scopes"
+                value={providerForm.configuration.scopes}
+                onChange={(e) =>
+                  setProviderForm({ ...providerForm, configuration: { ...providerForm.configuration, scopes: e.target.value } })
+                }
+              />
+
               <button
                 type="submit"
-                disabled={
-                  providerBusy ||
-                  !providerForm.name.trim() ||
-                  !providerForm.authority.trim() ||
-                  !providerForm.clientId.trim() ||
-                  !providerForm.audience.trim()
-                }
+                disabled={providerBusy || !providerForm.name?.trim() || !providerForm.displayName.trim() || !providerForm.clientId.trim()}
               >
                 Add provider
               </button>

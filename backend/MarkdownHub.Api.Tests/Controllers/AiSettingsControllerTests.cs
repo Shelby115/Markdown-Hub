@@ -24,7 +24,7 @@ public class AiSettingsControllerTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
 
-        _admin = new AppUser { KeycloakSubjectId = "admin-sub", Username = "admin", IsAdministrator = true };
+        _admin = new AppUser { Username = "admin", NormalizedUsername = "ADMIN", IsAdministrator = true };
         _db.Users.Add(_admin);
         _db.SaveChanges();
 
@@ -38,7 +38,7 @@ public class AiSettingsControllerTests : IDisposable
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                 [
-                    new Claim(ClaimTypes.NameIdentifier, _admin.KeycloakSubjectId),
+                    new Claim(ClaimTypes.NameIdentifier, _admin.Id.ToString()),
                     new Claim("preferred_username", _admin.Username),
                 ]))
             }

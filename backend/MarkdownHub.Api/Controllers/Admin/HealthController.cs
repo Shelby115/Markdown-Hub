@@ -51,28 +51,32 @@ public class HealthController : ControllerBase
             healthy = false;
         }
 
+        // Local username/password login never depends on an external provider (Auth.md §9/§31.10),
+        // so an absent or unreachable provider is informational only - it must never flip the
+        // overall health check to unhealthy, or a broken/unconfigured IdP would take down an
+        // otherwise fully-working, locally-authenticatable deployment.
         try
         {
-            var authority = await _db.OidcProviders.Where(p => p.IsEnabled)
-                .OrderBy(p => p.Id).Select(p => p.Authority).FirstOrDefaultAsync(ct);
+            var configJson = await _db.AuthenticationProviders
+                .Where(p => p.Enabled && p.Type == Data.Entities.AuthProviderType.Oidc)
+                .OrderBy(p => p.Id).Select(p => p.ConfigurationJson).FirstOrDefaultAsync(ct);
+            var authority = configJson is null ? null : Services.ExternalAuthService.ParseConfiguration(configJson).Authority;
+
             if (!string.IsNullOrEmpty(authority))
             {
                 var client = _httpClientFactory.CreateClient();
                 client.Timeout = TimeSpan.FromSeconds(3);
                 var resp = await client.GetAsync($"{authority.TrimEnd('/')}/.well-known/openid-configuration", ct);
-                checks["oidcProvider"] = resp.IsSuccessStatusCode ? "reachable" : $"unreachable ({(int)resp.StatusCode})";
-                if (!resp.IsSuccessStatusCode) healthy = false;
+                checks["externalOidcProvider"] = resp.IsSuccessStatusCode ? "reachable" : $"unreachable ({(int)resp.StatusCode})";
             }
             else
             {
-                checks["oidcProvider"] = "not configured";
-                healthy = false;
+                checks["externalOidcProvider"] = "not configured (local login is available)";
             }
         }
         catch (Exception ex)
         {
-            checks["oidcProvider"] = $"unreachable ({ex.GetType().Name})";
-            healthy = false;
+            checks["externalOidcProvider"] = $"unreachable ({ex.GetType().Name})";
         }
 
         var result = new { status = healthy ? "healthy" : "unhealthy", checks };

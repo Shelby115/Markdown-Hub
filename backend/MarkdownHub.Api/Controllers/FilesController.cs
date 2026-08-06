@@ -41,7 +41,7 @@ public class FilesController : ControllerBase
     [HttpGet("tree")]
     public async Task<IActionResult> GetTree(CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         // Fetch this user's grants once rather than re-querying FolderPermissions for every
@@ -55,7 +55,7 @@ public class FilesController : ControllerBase
     [HttpGet("templates")]
     public async Task<IActionResult> GetTemplates(CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         var grants = await _permissions.GetGrantsAsync(user.Id, ct);
@@ -73,7 +73,7 @@ public class FilesController : ControllerBase
     [HttpPost("mark-template/{**relativePath}")]
     public async Task<IActionResult> MarkTemplate(string relativePath, [FromBody] MarkTemplateRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Edit, ct)) return Forbid();
 
@@ -89,7 +89,7 @@ public class FilesController : ControllerBase
     [HttpPost("folder/{**relativePath}")]
     public async Task<IActionResult> CreateFolder(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Edit, ct)) return Forbid();
 
@@ -137,7 +137,7 @@ public class FilesController : ControllerBase
     [HttpGet("{**relativePath}")]
     public async Task<IActionResult> GetPage(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct)) return Forbid();
 
@@ -176,7 +176,7 @@ public class FilesController : ControllerBase
     [HttpPut("{**relativePath}")]
     public async Task<IActionResult> SavePage(string relativePath, [FromBody] SavePageRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Edit, ct)) return Forbid();
 
@@ -218,7 +218,7 @@ public class FilesController : ControllerBase
     [HttpDelete("{**relativePath}")]
     public async Task<IActionResult> DeletePage(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Manage, ct)) return Forbid();
 
@@ -231,7 +231,7 @@ public class FilesController : ControllerBase
     [HttpPost("rename/{**relativePath}")]
     public async Task<IActionResult> Rename(string relativePath, [FromBody] RenameRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Manage, ct)) return Forbid();
         if (!await _permissions.HasAtLeastAsync(user.Id, request.NewRelativePath, PermissionLevel.Edit, ct)) return Forbid();
@@ -258,7 +258,7 @@ public class FilesController : ControllerBase
     [HttpPost("rename-folder/{**relativePath}")]
     public async Task<IActionResult> RenameFolder(string relativePath, [FromBody] RenameRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Manage, ct)) return Forbid();
         if (!await _permissions.HasAtLeastAsync(user.Id, request.NewRelativePath, PermissionLevel.Edit, ct)) return Forbid();
@@ -299,7 +299,7 @@ public class FilesController : ControllerBase
     [HttpDelete("folder/{**relativePath}")]
     public async Task<IActionResult> DeleteFolder(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Manage, ct)) return Forbid();
 

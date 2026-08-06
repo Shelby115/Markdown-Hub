@@ -81,7 +81,7 @@ public class AiSettingsController : ControllerBase
         }
         await _db.SaveChangesAsync(ct);
 
-        var actingUser = await _currentUser.GetOrCreateAsync(ct);
+        var actingUser = await _currentUser.GetCurrentAsync(ct);
         await _audit.LogEventAsync(actingUser?.Id, "AiSettings.SetModel", AppSetting.AiOllamaModelKey, "Setting", null,
             trimmed ?? "(cleared - reverted to default)", ct: ct);
 

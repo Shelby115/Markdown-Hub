@@ -53,7 +53,7 @@ public class VersionsController : ControllerBase
     [HttpGet("by-path/{**relativePath}")]
     public async Task<IActionResult> GetHistoryByPath(string relativePath, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
         if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct)) return Forbid();
 
@@ -66,7 +66,7 @@ public class VersionsController : ControllerBase
     [HttpGet("{versionId:int}")]
     public async Task<IActionResult> GetVersion(int versionId, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         var version = await _versions.GetVersionAsync(versionId, ct);
@@ -82,7 +82,7 @@ public class VersionsController : ControllerBase
     [HttpGet("compare")]
     public async Task<IActionResult> Compare([FromQuery] int fromId, [FromQuery] int toId, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         var from = await _versions.GetVersionAsync(fromId, ct);
@@ -107,7 +107,7 @@ public class VersionsController : ControllerBase
     [HttpPost("{versionId:int}/restore")]
     public async Task<IActionResult> Restore(int versionId, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         var version = await _versions.GetVersionAsync(versionId, ct);
@@ -140,7 +140,7 @@ public class VersionsController : ControllerBase
     [HttpGet("deleted")]
     public async Task<IActionResult> ListDeleted(CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         var grants = await _permissions.GetGrantsAsync(user.Id, ct);

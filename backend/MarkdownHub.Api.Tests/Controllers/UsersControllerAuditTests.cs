@@ -1,7 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using MarkdownHub.Api.Controllers;
+using MarkdownHub.Api.Controllers.Auth;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Data.Entities;
 using MarkdownHub.Api.Services;
@@ -21,26 +22,28 @@ public class UsersControllerAuditTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
 
-        _admin = new AppUser { KeycloakSubjectId = "admin-sub", Username = "admin", IsAdministrator = true };
+        _admin = new AppUser { Username = "admin", NormalizedUsername = "ADMIN", IsAdministrator = true };
         _db.Users.Add(_admin);
         _db.SaveChanges();
 
         // CurrentUserService resolves the "acting user" from the request's JWT claims - set up an
-        // HttpContext carrying the seeded admin's subject so LogAsync attributes entries to them.
+        // HttpContext carrying the seeded admin's id so LogAsync attributes entries to them.
         var httpContextAccessor = new HttpContextAccessor
         {
             HttpContext = new DefaultHttpContext
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                 [
-                    new Claim(ClaimTypes.NameIdentifier, _admin.KeycloakSubjectId),
+                    new Claim(ClaimTypes.NameIdentifier, _admin.Id.ToString()),
                     new Claim("preferred_username", _admin.Username),
                 ]))
             }
         };
         var currentUser = new CurrentUserService(_db, httpContextAccessor);
         var audit = new AuditLogService(_db, httpContextAccessor);
-        _sut = new UsersController(_db, currentUser, audit);
+        var hasher = new PasswordHasher<AppUser>();
+        var safety = new AccountSafetyService(_db);
+        _sut = new UsersController(_db, currentUser, audit, hasher, safety);
     }
 
     public void Dispose() => _db.Dispose();
@@ -48,7 +51,7 @@ public class UsersControllerAuditTests : IDisposable
     [Fact]
     public async Task PromoteToAdmin_RecordsAuditEntryAttributedToActingAdmin()
     {
-        var target = new AppUser { KeycloakSubjectId = "target-sub", Username = "bob" };
+        var target = new AppUser { Username = "bob", NormalizedUsername = "BOB" };
         _db.Users.Add(target);
         await _db.SaveChangesAsync();
 
@@ -63,7 +66,7 @@ public class UsersControllerAuditTests : IDisposable
     [Fact]
     public async Task DeleteUser_RecordsAuditEntry()
     {
-        var target = new AppUser { KeycloakSubjectId = "target-sub-2", Username = "carol" };
+        var target = new AppUser { Username = "carol", NormalizedUsername = "CAROL" };
         _db.Users.Add(target);
         await _db.SaveChangesAsync();
 
@@ -75,9 +78,18 @@ public class UsersControllerAuditTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteUser_LastAdministrator_IsRefused()
+    {
+        var result = await _sut.DeleteUser(_admin.Id, CancellationToken.None);
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.BadRequestObjectResult>(result);
+        Assert.NotNull(await _db.Users.FindAsync(_admin.Id));
+    }
+
+    [Fact]
     public async Task GrantPermission_RecordsAuditEntryWithFolderAndLevel()
     {
-        var target = new AppUser { KeycloakSubjectId = "target-sub-3", Username = "dave" };
+        var target = new AppUser { Username = "dave", NormalizedUsername = "DAVE" };
         _db.Users.Add(target);
         await _db.SaveChangesAsync();
 
@@ -94,11 +106,22 @@ public class UsersControllerAuditTests : IDisposable
     {
         // A duplicate username is rejected before any change is made - no audit entry should
         // appear for an action that never actually happened.
-        _db.Users.Add(new AppUser { KeycloakSubjectId = "existing-sub", Username = "erin" });
+        _db.Users.Add(new AppUser { Username = "erin", NormalizedUsername = "ERIN" });
         await _db.SaveChangesAsync();
 
-        await _sut.CreateUser(new CreateUserRequest("erin"), CancellationToken.None);
+        await _sut.CreateUser(new CreateUserRequest("erin", null), CancellationToken.None);
 
         Assert.Empty(_db.AuditLog);
+    }
+
+    [Fact]
+    public async Task CreateUser_WithoutTemporaryPassword_GeneratesOneAndHashesIt()
+    {
+        var result = await _sut.CreateUser(new CreateUserRequest("frank", null), CancellationToken.None);
+
+        var response = Assert.IsType<CreateUserResponse>(Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(result).Value);
+        Assert.False(string.IsNullOrEmpty(response.TemporaryPassword));
+        var created = await _db.Users.FirstAsync(u => u.Username == "frank");
+        Assert.NotNull(created.PasswordHash);
     }
 }

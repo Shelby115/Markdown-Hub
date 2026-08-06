@@ -1,4 +1,4 @@
-import { getFreshToken } from "../auth/oidc";
+import { clearToken, getToken } from "../auth/auth";
 
 export interface TreeNode {
   name: string;
@@ -47,6 +47,7 @@ export interface CurrentUser {
   id: number;
   username: string;
   email: string | null;
+  displayName: string | null;
   isAdministrator: boolean;
   defaultFolderPath: string | null;
 }
@@ -59,7 +60,39 @@ export interface AdminUser {
   isDisabled: boolean;
   createdAt: string;
   lastLoginAt: string | null;
-  isPending: boolean;
+  hasPassword: boolean;
+  linkedIdentityCount: number;
+}
+
+export interface CreateUserResult {
+  id: number;
+  username: string;
+  isAdministrator: boolean;
+  temporaryPassword: string;
+}
+
+export interface AuthMethods {
+  hasPassword: boolean;
+  linkedIdentities: LinkedIdentity[];
+}
+
+export interface LinkedIdentity {
+  id: number;
+  providerId: number;
+  providerName: string;
+  providerDisplayName: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface SessionInfo {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  lastActivityAt: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  isCurrent: boolean;
 }
 
 // Mirrors the backend PermissionLevel enum, serialized as its numeric value.
@@ -73,23 +106,52 @@ export interface AdminFolderPermission {
   level: number;
 }
 
-export interface OidcProvider {
-  id: number;
-  name: string;
-  authority: string;
-  clientId: string;
-  audience: string;
+// Mirrors the backend AuthProviderType enum, serialized as its numeric value.
+export const PROVIDER_TYPE_LABELS = ["OIDC", "OAuth 2.0"] as const;
+
+export interface ProviderConfiguration {
+  authority: string | null;
   requireHttpsMetadata: boolean;
-  isEnabled: boolean;
-  createdAt: string;
+  audience: string | null;
+  authorizationEndpoint: string | null;
+  tokenEndpoint: string | null;
+  userInfoEndpoint: string | null;
+  scopes: string;
+  userIdField: string;
+  emailField: string | null;
+  nameField: string | null;
+  // Mirrors AutoProvisionPolicy: 0 = Allow, 1 = RequireApproval, 2 = Disabled.
+  autoProvision: number;
 }
 
-export interface SaveOidcProviderRequest {
+export interface AuthenticationProvider {
+  id: number;
   name: string;
-  authority: string;
+  displayName: string;
+  type: number;
   clientId: string;
-  audience: string;
-  requireHttpsMetadata: boolean;
+  hasClientSecret: boolean;
+  configuration: ProviderConfiguration;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  usersUsingProvider: number;
+}
+
+export interface ProviderPreset {
+  key: string;
+  displayName: string;
+  type: number;
+  configuration: ProviderConfiguration;
+}
+
+export interface SaveAuthenticationProviderRequest {
+  name?: string; // required on create only - immutable afterward (baked into redirect URIs)
+  displayName: string;
+  type: number;
+  clientId: string;
+  clientSecret?: string; // omit/blank on update to leave the stored secret unchanged
+  configuration: ProviderConfiguration;
 }
 
 export interface HistorySettings {
@@ -198,7 +260,7 @@ export function extractErrorMessage(err: unknown, fallback: string): string {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await getFreshToken();
+  const token = getToken();
   const res = await fetch(path, {
     ...init,
     headers: {
@@ -207,6 +269,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
+
+  if (res.status === 401 && token) {
+    // The token expired or its session was revoked mid-visit - drop it and reload so the app
+    // falls back to the sign-in splash instead of the rest of the page failing silently.
+    clearToken();
+    window.location.reload();
+  }
 
   if (res.status === 204) return undefined as T;
   if (!res.ok) {
@@ -279,7 +348,7 @@ export const api = {
     ),
 
   fetchAttachmentBlob: async (relativePath: string): Promise<Blob> => {
-    const token = await getFreshToken();
+    const token = getToken();
     const res = await fetch(`/api/attachments/${encodeHubPath(relativePath)}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
@@ -293,8 +362,8 @@ export const api = {
   /// browser's own media engine fetches the file natively - with HTTP Range support for
   /// seeking - rather than the whole file having to be downloaded into memory as a Blob first
   /// (which is fine for small images but made large audio/video files lag or crash the tab).
-  attachmentStreamUrl: async (relativePath: string): Promise<string> => {
-    const token = await getFreshToken();
+  attachmentStreamUrl: (relativePath: string): string => {
+    const token = getToken();
     const path = `/api/attachments/${encodeHubPath(relativePath)}`;
     return token ? `${path}?access_token=${encodeURIComponent(token)}` : path;
   },
@@ -327,12 +396,38 @@ export const api = {
       body: JSON.stringify({ folderPath }),
     }),
 
+  changePassword: (currentPassword: string | null, newPassword: string, confirmNewPassword: string) =>
+    request<void>("/api/me/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
+    }),
+
+  getAuthMethods: () => request<AuthMethods>("/api/me/authentication-methods"),
+
+  removeAuthMethod: (id: number) => request<void>(`/api/me/authentication-methods/${id}`, { method: "DELETE" }),
+
+  linkProviderStart: (providerName: string) =>
+    request<{ redirectUrl: string }>(
+      `/api/auth/external/${encodeURIComponent(providerName)}/link-start?returnOrigin=${encodeURIComponent(window.location.origin)}`,
+      { method: "POST" }
+    ),
+
+  getSessions: () => request<SessionInfo[]>("/api/me/sessions"),
+
+  revokeSession: (id: string) => request<void>(`/api/me/sessions/${id}`, { method: "DELETE" }),
+
   adminListUsers: () => request<AdminUser[]>("/api/admin/users"),
 
-  adminCreateUser: (username: string, isAdministrator: boolean) =>
-    request<AdminUser>("/api/admin/users", {
+  adminCreateUser: (username: string, isAdministrator: boolean, temporaryPassword?: string) =>
+    request<CreateUserResult>("/api/admin/users", {
       method: "POST",
-      body: JSON.stringify({ username, isAdministrator }),
+      body: JSON.stringify({ username, isAdministrator, temporaryPassword: temporaryPassword || undefined }),
+    }),
+
+  adminSetUserPassword: (id: number, newPassword: string) =>
+    request<void>(`/api/admin/users/${id}/set-password`, {
+      method: "POST",
+      body: JSON.stringify({ newPassword }),
     }),
 
   adminSetUserDisabled: (id: number, disabled: boolean) =>
@@ -341,28 +436,30 @@ export const api = {
   adminSetUserRole: (id: number, isAdministrator: boolean) =>
     request<void>(`/api/admin/users/${id}/${isAdministrator ? "promote" : "demote"}`, { method: "POST" }),
 
-  adminListOidcProviders: () => request<OidcProvider[]>("/api/admin/oidc-providers"),
+  adminListAuthProviders: () => request<AuthenticationProvider[]>("/api/admin/auth-providers"),
 
-  adminCreateOidcProvider: (provider: SaveOidcProviderRequest) =>
-    request<OidcProvider>("/api/admin/oidc-providers", {
+  adminGetProviderPresets: () => request<ProviderPreset[]>("/api/admin/auth-providers/presets"),
+
+  adminCreateAuthProvider: (provider: SaveAuthenticationProviderRequest) =>
+    request<AuthenticationProvider>("/api/admin/auth-providers", {
       method: "POST",
       body: JSON.stringify(provider),
     }),
 
-  adminUpdateOidcProvider: (id: number, provider: SaveOidcProviderRequest) =>
-    request<OidcProvider>(`/api/admin/oidc-providers/${id}`, {
+  adminUpdateAuthProvider: (id: number, provider: SaveAuthenticationProviderRequest) =>
+    request<AuthenticationProvider>(`/api/admin/auth-providers/${id}`, {
       method: "PUT",
       body: JSON.stringify(provider),
     }),
 
-  adminDeleteOidcProvider: (id: number) =>
-    request<void>(`/api/admin/oidc-providers/${id}`, { method: "DELETE" }),
+  adminDeleteAuthProvider: (id: number) =>
+    request<void>(`/api/admin/auth-providers/${id}`, { method: "DELETE" }),
 
-  adminEnableOidcProvider: (id: number) =>
-    request<OidcProvider>(`/api/admin/oidc-providers/${id}/enable`, { method: "POST" }),
+  adminEnableAuthProvider: (id: number) =>
+    request<AuthenticationProvider>(`/api/admin/auth-providers/${id}/enable`, { method: "POST" }),
 
-  adminDisableOidcProvider: (id: number) =>
-    request<OidcProvider>(`/api/admin/oidc-providers/${id}/disable`, { method: "POST" }),
+  adminDisableAuthProvider: (id: number) =>
+    request<AuthenticationProvider>(`/api/admin/auth-providers/${id}/disable`, { method: "POST" }),
 
   adminListPermissions: () => request<AdminFolderPermission[]>("/api/admin/permissions"),
 
@@ -413,7 +510,7 @@ export const api = {
   adminGetActivityActionTypes: () => request<string[]>("/api/admin/activity/action-types"),
 
   uploadAttachment: async (folder: string, file: File) => {
-    const token = await getFreshToken();
+    const token = getToken();
     const form = new FormData();
     form.append("file", file);
     const res = await fetch(`/api/attachments?folder=${encodeURIComponent(folder)}`, {

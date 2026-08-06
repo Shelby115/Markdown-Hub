@@ -44,7 +44,7 @@ public class HistorySettingsController : ControllerBase
         if (request.ActivityDefaultDays > request.ActivityRetentionDays)
             return BadRequest(new { message = "The default activity view window can't exceed the activity retention period." });
 
-        var actingUser = await _currentUser.GetOrCreateAsync(ct);
+        var actingUser = await _currentUser.GetCurrentAsync(ct);
         await _settings.SetAsync(HistorySettingsService.VersionRetentionDaysKey, request.VersionRetentionDays, ct);
         await _settings.SetAsync(HistorySettingsService.ActivityRetentionDaysKey, request.ActivityRetentionDays, ct);
         await _settings.SetAsync(HistorySettingsService.ActivityDefaultDaysKey, request.ActivityDefaultDays, ct);

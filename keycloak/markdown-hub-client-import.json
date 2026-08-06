@@ -4,13 +4,14 @@
       "clientId": "markdown-hub",
       "enabled": true,
       "protocol": "openid-connect",
-      "publicClient": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
       "standardFlowEnabled": true,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "authorizationServicesEnabled": false,
-      "redirectUris": ["http://localhost:8086/*"],
+      "redirectUris": ["http://localhost:8085/api/auth/external/keycloak/callback"],
       "webOrigins": ["+"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
@@ -23,7 +24,7 @@
           "consentRequired": false,
           "config": {
             "included.client.audience": "markdown-hub",
-            "id.token.claim": "false",
+            "id.token.claim": "true",
             "access.token.claim": "true"
           }
         }

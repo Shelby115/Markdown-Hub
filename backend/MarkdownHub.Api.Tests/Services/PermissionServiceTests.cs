@@ -38,7 +38,7 @@ public class PermissionServiceTests : IDisposable
 
     private async Task<AppUser> CreateUserWithGrantAsync(string folderPath, PermissionLevel level)
     {
-        var user = new AppUser { KeycloakSubjectId = Guid.NewGuid().ToString(), Username = "alice" };
+        var user = new AppUser { Username = "alice", NormalizedUsername = "ALICE" };
         _db.Users.Add(user);
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = 0, FolderPath = folderPath, Level = level });
         await _db.SaveChangesAsync();
@@ -119,7 +119,7 @@ public class PermissionServiceTests : IDisposable
     [Fact]
     public async Task GetEffectiveLevelAsync_MostSpecificGrantWins()
     {
-        var user = new AppUser { KeycloakSubjectId = Guid.NewGuid().ToString(), Username = "bob" };
+        var user = new AppUser { Username = "bob", NormalizedUsername = "BOB" };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = user.Id, FolderPath = "Projects", Level = PermissionLevel.View });
@@ -134,7 +134,7 @@ public class PermissionServiceTests : IDisposable
     [Fact]
     public async Task GetEffectiveLevelAsync_AdministratorBypassesGrants()
     {
-        var user = new AppUser { KeycloakSubjectId = Guid.NewGuid().ToString(), Username = "admin", IsAdministrator = true };
+        var user = new AppUser { Username = "admin", NormalizedUsername = "ADMIN", IsAdministrator = true };
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
 
@@ -159,7 +159,7 @@ public class PermissionServiceTests : IDisposable
     [Fact]
     public async Task GetEffectiveLevelAsync_DisabledUser_ReturnsNull()
     {
-        var user = new AppUser { KeycloakSubjectId = Guid.NewGuid().ToString(), Username = "gone", IsDisabled = true };
+        var user = new AppUser { Username = "gone", NormalizedUsername = "GONE", IsDisabled = true };
         _db.Users.Add(user);
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = 0, FolderPath = "", Level = PermissionLevel.Manage });
         await _db.SaveChangesAsync();

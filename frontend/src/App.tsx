@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Route, Routes, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { api } from "./api/client";
-import { AuthProviderInfo, getUsername, initAuth, login, logout } from "./auth/oidc";
+import { AuthProviderInfo, getProviders, isAuthenticated, loginLocal, logout, startExternalLogin } from "./auth/auth";
+import { Account } from "./pages/Account";
 import { Admin } from "./pages/Admin";
 import { ActivityLogPage } from "./pages/ActivityLogPage";
 import { AuthCallback } from "./pages/AuthCallback";
@@ -37,7 +38,11 @@ export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [providers, setProviders] = useState<AuthProviderInfo[]>([]);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginBusy, setLoginBusy] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [username, setUsername] = useState<string | undefined>(undefined);
   const [defaultFolderPath, setDefaultFolderPath] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
@@ -95,17 +100,13 @@ export default function App() {
 
   useEffect(() => {
     if (isPublishedRoute || isAuthCallbackRoute) return;
-    initAuth()
-      .then(({ authenticated: auth, providers: list }) => {
-        setAuthenticated(auth);
-        setProviders(list);
-        setReady(true);
-      })
+    setAuthenticated(isAuthenticated());
+    setReady(true);
+    getProviders()
+      .then(setProviders)
       .catch((err) => {
-        console.error("Auth initialization failed", err);
-        setAuthError(err instanceof Error ? err.message : String(err));
-        setAuthenticated(false);
-        setReady(true);
+        console.error("Couldn't load sign-in providers", err);
+        setProviders([]);
       });
   }, [isPublishedRoute, isAuthCallbackRoute]);
 
@@ -115,12 +116,26 @@ export default function App() {
       .getMe()
       .then((me) => {
         setIsAdmin(me.isAdministrator);
+        setUsername(me.username);
         setDefaultFolderPath(me.defaultFolderPath);
       })
       .catch(() => setIsAdmin(false));
   }, [authenticated]);
 
-  const username = authenticated ? getUsername() : undefined;
+  const submitLogin = async (event: FormEvent) => {
+    event.preventDefault();
+    setLoginBusy(true);
+    setAuthError(null);
+    try {
+      await loginLocal(loginUsername.trim(), loginPassword);
+      setLoginPassword("");
+      setAuthenticated(true);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoginBusy(false);
+    }
+  };
 
   if (isPublishedRoute) {
     return (
@@ -147,18 +162,31 @@ export default function App() {
       <div className="splash">
         <h1>Markdown Hub</h1>
         <p className="tagline">Self-Hosted. Self-Referenced. Self-Owned.</p>
-        {authError && <p style={{ color: "crimson" }}>Sign-in failed: {authError}</p>}
-        {providers.length === 0 ? (
-          <p style={{ color: "crimson" }}>No sign-in provider is configured yet.</p>
-        ) : providers.length === 1 ? (
-          <button className="primary" onClick={() => void login()}>
-            Sign in
+        {authError && <p style={{ color: "crimson" }}>{authError}</p>}
+        <form className="admin-grant-form" onSubmit={(e) => void submitLogin(e)}>
+          <input
+            type="text"
+            placeholder="Username"
+            autoComplete="username"
+            value={loginUsername}
+            onChange={(e) => setLoginUsername(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            autoComplete="current-password"
+            value={loginPassword}
+            onChange={(e) => setLoginPassword(e.target.value)}
+          />
+          <button className="primary" type="submit" disabled={loginBusy || !loginUsername.trim() || !loginPassword}>
+            Sign In
           </button>
-        ) : (
+        </form>
+        {providers.length > 0 && (
           <div className="admin-grant-form">
             {providers.map((p) => (
-              <button key={p.id} className="primary" onClick={() => void login(p.id)}>
-                Sign in with {p.name}
+              <button key={p.id} className="secondary" onClick={() => startExternalLogin(p.name)}>
+                Sign in with {p.displayName}
               </button>
             ))}
           </div>
@@ -181,7 +209,18 @@ export default function App() {
             </button>
             <span className="brand">Markdown Hub</span>
           </div>
-          <button className="link-button" onClick={() => void api.logout().catch(() => {}).then(() => logout())}>
+          <button
+            className="link-button"
+            onClick={() =>
+              void api
+                .logout()
+                .catch(() => {})
+                .then(() => {
+                  logout();
+                  setAuthenticated(false);
+                })
+            }
+          >
             Sign out
           </button>
         </div>
@@ -224,6 +263,9 @@ export default function App() {
               🖥
             </button>
           </div>
+          <button className="link-button" onClick={() => navigate("/account")}>
+            Account
+          </button>
           {isAdmin && (
             <button className="link-button" onClick={() => navigate("/admin")}>
               Admin
@@ -242,6 +284,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Welcome username={username} />} />
           <Route path="/page/*" element={<PageView key={reloadNonce} />} />
+          <Route path="/account" element={<Account />} />
           {isAdmin && <Route path="/admin" element={<Admin />} />}
           {isAdmin && <Route path="/admin/activity" element={<ActivityLogPage />} />}
         </Routes>

@@ -12,7 +12,7 @@ gives you a live-preview, wiki-style browser editing experience (CodeMirror 6)
 | API            | ASP.NET Web API, .NET 10                                |
 | Frontend       | React + TypeScript + Vite + CodeMirror 6                |
 | Database       | SQLite (metadata, permissions, search index, audit log)  |
-| Auth           | OpenID Connect / JWT bearer, multiple providers, admin-configurable |
+| Auth           | Local username/password (foundation) + optional linked OIDC/OAuth2 providers, self-issued JWT bearer |
 | Search         | SQLite FTS5 virtual table                                |
 | Orchestration  | Docker Compose                                            |
 
@@ -26,48 +26,41 @@ backend/MarkdownHub.Api/
                     file-watching, backups
   Middleware/       Admin authorization policy handler
 frontend/src/
-  auth/            Generic OIDC client (oidc-client-ts) - fetches enabled providers from the
-                    API at runtime, so the built frontend image isn't tied to any one provider
+  auth/            Local login (username/password), external-provider redirect kickoff, and
+                    bearer-token storage - no client-side OIDC library; the server does the
+                    OIDC/OAuth2 exchange (see AuthController.cs) and hands back a token this app
+                    minted itself
   api/             Typed fetch client
   components/       FileTree, SearchBar, Editor (CodeMirror), liveMarkdown (decorations), Backlinks
-  pages/            Route-level views (PageView, PublishedPage, Welcome, AuthCallback)
+  pages/            Route-level views (PageView, PublishedPage, Welcome, AuthCallback, Account)
 keycloak/
-  markdown-hub-client-import.json  Example client config to import into a Keycloak realm - one
-                                    possible OIDC provider among any number the admin page supports
+  markdown-hub-client-import.json  Example confidential client config to import into a Keycloak
+                                    realm - one possible external provider among any number the
+                                    admin page supports; entirely optional
 docker-compose.yml
 docker-compose.override.yml  (gitignored; optional, host-specific overrides - see below)
 ```
 
 ## Running it
 
-This app doesn't bundle an identity provider - it validates tokens from whichever OIDC
-provider(s) you configure and enable via the admin page ("OIDC providers" section). Any
-standards-compliant OIDC provider works (Keycloak, Authentik, Zitadel, Auth0, ...) as long as
-it can act as a public SPA client with authorization-code + PKCE and no client secret. See
-[SetupGuide.md](SetupGuide.md) for a full first-time-setup walkthrough, including gotchas.
+Local username/password login always works - no external identity provider is required, ever.
+The initial administrator account is bootstrapped from `ADMIN_USERNAME`/`ADMIN_PASSWORD`.
+External OIDC/OAuth2 providers (Keycloak, Google, GitHub, Facebook, or any standards-compliant
+provider) are an optional enhancement any user can link from their Account page once signed in -
+see [ReadMe.md](ReadMe.md) for a full first-time-setup walkthrough, including how to add one.
 
 ```bash
-cp .env.example .env      # fill in OIDC_DEFAULT_* (see comments in .env.example) and HUB_HOST_PATH
+cp .env.example .env      # set ADMIN_PASSWORD and HUB_HOST_PATH
 docker compose up --build
 ```
-
-`OIDC_DEFAULT_*` only matters on a brand-new database - it seeds the very first provider so
-there's something to log in with. After that, providers live in the database and are managed
-entirely through the admin page; changing `OIDC_DEFAULT_*` later has no effect. An example
-Keycloak client you can import to stand up that first provider is in
-`keycloak/markdown-hub-client-import.json` (public client, PKCE required, "Client
-authentication" OFF, with an audience mapper adding the client's own ID to `aud` — see that
-file's fields for the exact settings). Whatever provider you use, its client needs
-`<your origin>/auth/callback` allowed as a redirect URI.
 
 - Frontend: http://localhost:8086
 - API: http://localhost:8085 (health check at `/health`)
 
-The **first user ever to log into the app** is automatically promoted to application
-administrator, independent of provider roles — admin status here is an app-level concept, not
-something any provider grants, since folder permissions are managed entirely inside this app's
-database. If you'd rather guarantee a specific account gets admin instead of relying on "first
-one in," set `ADMIN_USERNAME` in `.env` to that account's username ahead of their first login.
+Authorization (admin vs. regular user) is always an app-level concept tracked in this app's own
+database - never delegated to an external provider's roles/claims (Auth.md §23). Admins manage
+other users and external-provider configuration from the Admin page; every user manages their
+own password, linked providers, and active sessions from their Account page.
 
 If your identity provider and this app run on the same machine but your router doesn't support
 NAT hairpin/loopback (common on home networks), you'll need a Docker `extra_hosts` entry
@@ -95,15 +88,22 @@ run the API separately, e.g. `dotnet run` from `backend/MarkdownHub.Api`).
 
 ## What's implemented
 
-- OIDC login (authorization code + PKCE) on the SPA against any number of admin-configured
-  providers; JWT bearer validation on the API resolved dynamically per-issuer, so more than
-  one provider can be enabled at once (`OidcProvidersController`, `Services/OidcProviderValidationService.cs`).
-  The SPA fetches the enabled-provider list from the API at runtime (`/api/auth/providers`)
-  rather than baking one in at build time, auto-signing in against the sole provider when
-  there's only one, or showing a picker when there's more than one.
-- `ADMIN_USERNAME` config seeds a pending administrator account on startup (`StartupSeeder`),
-  so a specific account can be guaranteed admin on first login instead of relying on "whoever
-  logs in first."
+- **Local-first authentication redesign** (see `Auth.md` for the full design spec):
+  username/password is the foundation (`Controllers/AuthController.cs`, `MeController.cs`),
+  with any number of external OIDC/OAuth2 providers as optional *linked* identities on top
+  (`AuthenticationIdentity`, `Services/ExternalAuthService.cs`) rather than the sole identity
+  system. The server performs the OIDC/OAuth2 authorization-code exchange itself (confidential
+  client, PKCE + state validation) and issues its own self-signed JWT - provider tokens/secrets
+  never reach the browser. Every issued token carries a `sid` claim tied to a DB-backed
+  `Session` row (`AppTokenService`), so sessions stay individually revocable (Account/Admin →
+  Sessions) despite being a bearer token rather than a cookie.
+  `ADMIN_USERNAME`/`ADMIN_PASSWORD` (or `ADMIN_PASSWORD_FILE`) bootstrap the initial
+  administrator account once, on first boot (`Data/StartupSeeder.cs`) - the DB is authoritative
+  from then on. Passwords are hashed via ASP.NET Core Identity's `PasswordHasher<AppUser>`
+  (PBKDF2-HMAC-SHA256, automatic rehash-on-verify). Provider client secrets are encrypted at
+  rest via ASP.NET Core Data Protection (`Services/ProviderSecretProtector.cs`, keys persisted
+  to the `keys-data` volume). `Services/AccountSafetyService.cs` centralizes the "don't strand
+  the last administrator" guards for removing an auth method or disabling/deleting a provider.
 - Path-traversal-safe filesystem access (`HubPathService`) used by every file operation
 - Markdown CRUD, folder tree with inline rename/delete/create — all permission-checked per folder
 - **Live-preview editor** (CodeMirror 6): markdown renders styled by default; raw syntax for
@@ -147,7 +147,9 @@ run the API separately, e.g. `dotnet run` from `backend/MarkdownHub.Api`).
   after the initial startup reconciliation
 - Image paste-to-upload in the editor, with extension + magic-byte validation
 - Zip backups (Markdown + DB + config + attachments), manual trigger + daily schedule + retention
-- `/health` endpoint checking app, hub directory, DB, and OIDC provider reachability
+- `/health` endpoint checking app, hub directory, and DB; an external OIDC provider's
+  reachability is reported informationally but never flips the overall status to unhealthy,
+  since local login never depends on one
 - Admin endpoints to rebuild the search index and file metadata from the filesystem independently
 - React error boundary surfacing crash details on screen (rather than a blank page) for
   easier diagnosis if something in the editor does throw
@@ -227,18 +229,17 @@ additional card types, "Add as New Page", persisted conversation history).
 - The `/published/:slug` route is intentionally unauthenticated and only ever resolves
   wiki-links within a published page to *other published pages* — it never exposes
   filesystem paths or the existence of unpublished content.
-- **Editing an `OidcProvider` isn't guarded the way deleting/disabling the last one is** -
-  `OidcProvidersController.Update` will happily save a Client ID/Audience/Authority that
-  doesn't match what the IdP actually issues, even if it's the only enabled provider, locking
-  every user (including admins) out with no way back in through the UI. Full user-facing
-  recovery steps are in ReadMe.md's "Managing providers after setup" section - the short
-  version if you're fixing this from a Claude session: the fix is a direct `UPDATE` on the
-  `OidcProviders` table in the SQLite db inside the `db-data` Docker volume (`/data/db/
-  markdown-hub.db`), via a throwaway `alpine`+`sqlite3` container the same way any other
-  direct-DB fix in this project gets done - then **`docker compose restart api`**, since
-  `OidcProviderValidationService` caches the enabled-provider list in memory for up to 60
-  seconds (longer if nothing triggers a refresh), so the DB fix alone can look like it didn't
-  work until the API process actually restarts.
+- **Editing an `AuthenticationProvider` isn't guarded the way deleting/disabling the last one
+  is** - `AuthenticationProvidersController.Update` will happily save a Client ID/Authority/
+  endpoint that doesn't match what the provider actually issues. Unlike the old design, this can
+  no longer lock everyone out on its own, since local username/password sign-in is always
+  available regardless of provider state (Auth.md §9/§31.7) - the practical impact is limited to
+  "that one provider stops working until fixed," recoverable from the admin page itself (or, in
+  the worst case, direct DB access the same way any other direct-DB fix in this project gets
+  done: the `AuthenticationProviders` table in the SQLite db inside the `db-data` Docker volume,
+  `/data/db/markdown-hub.db` - note `ClientSecretProtected` is encrypted via ASP.NET Core Data
+  Protection, so only the plaintext columns like `ClientId`/`ConfigurationJson` are directly
+  fixable that way; a broken secret needs re-entering through the admin UI instead).
 
 ## To Do list
 
@@ -387,10 +388,10 @@ rather than as unrelated systems, per that doc's section 3.
   and settings/permission changes. Server-side date-range/user/action/object filtering and
   pagination; defaults to the last 14 days, reachable back to the 30-day retention ceiling.
   `AuditLogService.LogGroupedAsync` coalesces repeated same-IP/same-action rows (e.g. a client
-  repeatedly sending a rejected token) within a short window into one row with an occurrence
-  count, instead of one row per occurrence — events are logged as exactly what they are; this
-  app never sees actual password attempts at all, since Keycloak's own login page handles those
-  entirely outside the API's view, so "failed login" isn't a real signal available to log.
+  repeatedly sending a rejected token, or repeated failed local login attempts) within a short
+  window into one row with an occurrence count, instead of one row per occurrence - failed
+  local logins are logged as `Auth.LoginFailed` (username/IP only, never the password) and are
+  also rate-limited server-side (see `AuthController.Login`, Auth.md §21).
 * [x] **Configurable retention** (`Services/HistorySettingsService.cs`, `AppSetting`-backed like
   the AI model override) — `VersionHistoryRetentionDays` (default 3), `ActivityLogRetentionDays`
   (default 30), `ActivityLogDefaultDays` (default 14), editable from Admin → "Version history &

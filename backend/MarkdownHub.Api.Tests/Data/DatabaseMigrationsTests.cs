@@ -59,7 +59,9 @@ public class DatabaseMigrationsTests : IDisposable
         await db.ConflictFiles.FirstOrDefaultAsync();
         await db.AuditLog.FirstOrDefaultAsync();
         await db.Backups.FirstOrDefaultAsync();
-        await db.OidcProviders.FirstOrDefaultAsync();
+        await db.AuthenticationProviders.FirstOrDefaultAsync();
+        await db.AuthenticationIdentities.FirstOrDefaultAsync();
+        await db.Sessions.FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -207,5 +209,136 @@ public class DatabaseMigrationsTests : IDisposable
 
         // Should not throw - the stray table is gone, "Settings" is what's actually used.
         await db.Settings.FirstOrDefaultAsync();
+    }
+
+    /// <summary>Builds a database that looks like a fully-migrated pre-auth-redesign install:
+    /// every ordinary table (Pages, AuditLog, etc.) present via EnsureCreatedAsync against the
+    /// *current* model (their shape is irrelevant to these tests), then the auth-specific parts
+    /// reverted to their old shape - Users.KeycloakSubjectId instead of the new columns, and the
+    /// old single-table OidcProviders instead of AuthenticationProviders/Identities/Sessions -
+    /// since EnsureCreatedAsync against the current model can only ever produce the new schema
+    /// for those. This is the only way to exercise the legacy-data migration path at all.</summary>
+    private static async Task CreateLegacyPreAuthRedesignDatabaseAsync(AppDbContext db)
+    {
+        await db.Database.EnsureCreatedAsync();
+
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE AuthenticationIdentities;");
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE Sessions;");
+        await db.Database.ExecuteSqlRawAsync("DROP TABLE AuthenticationProviders;");
+
+        await db.Database.ExecuteSqlRawAsync("DROP INDEX IX_Users_NormalizedUsername;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users DROP COLUMN PasswordHash;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users DROP COLUMN NormalizedUsername;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users DROP COLUMN NormalizedEmail;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users DROP COLUMN DisplayName;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users DROP COLUMN UpdatedAt;");
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE Users ADD COLUMN KeycloakSubjectId TEXT NOT NULL DEFAULT '';");
+        await db.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IX_Users_KeycloakSubjectId ON Users (KeycloakSubjectId);");
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE OidcProviders (
+                Id INTEGER NOT NULL CONSTRAINT PK_OidcProviders PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                Authority TEXT NOT NULL,
+                ClientId TEXT NOT NULL,
+                Audience TEXT NOT NULL,
+                RequireHttpsMetadata INTEGER NOT NULL DEFAULT 1,
+                IsEnabled INTEGER NOT NULL DEFAULT 1,
+                CreatedAt TEXT NOT NULL
+            );
+            """);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_LegacySingleProvider_MigratesProviderDisabledAndLinksExistingIdentities()
+    {
+        var (db1, search1) = NewContext();
+        await using (db1)
+        {
+            await CreateLegacyPreAuthRedesignDatabaseAsync(db1);
+            await db1.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Users (KeycloakSubjectId, Username, Email, IsAdministrator, IsDisabled, CreatedAt) " +
+                "VALUES ('legacy-sub-1', 'alice', 'alice@example.com', 1, 0, '2024-01-01T00:00:00Z');");
+            await db1.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Users (KeycloakSubjectId, Username, Email, IsAdministrator, IsDisabled, CreatedAt) " +
+                "VALUES ('pending:bob', 'bob', NULL, 0, 0, '2024-01-01T00:00:00Z');");
+            await db1.Database.ExecuteSqlRawAsync(
+                "INSERT INTO OidcProviders (Name, Authority, ClientId, Audience, RequireHttpsMetadata, IsEnabled, CreatedAt) " +
+                "VALUES ('Keycloak', 'https://auth.example.com/realms/markdown-hub', 'markdown-hub', 'markdown-hub', 1, 1, '2024-01-01T00:00:00Z');");
+        }
+
+        var (db2, search2) = NewContext();
+        await using var _ = db2;
+        await DatabaseMigrations.ApplyAsync(db2, search2);
+
+        var provider = Assert.Single(db2.AuthenticationProviders);
+        Assert.Equal("Keycloak", provider.DisplayName);
+        Assert.False(provider.Enabled); // no client secret exists yet - must not come up silently usable
+        Assert.Null(provider.ClientSecretProtected);
+
+        var identity = Assert.Single(db2.AuthenticationIdentities);
+        Assert.Equal("legacy-sub-1", identity.Subject);
+        var alice = await db2.Users.SingleAsync(u => u.Username == "alice");
+        Assert.Equal(identity.UserId, alice.Id);
+        Assert.Equal("ALICE", alice.NormalizedUsername);
+        Assert.True(alice.IsAdministrator);
+
+        // The "pending:" placeholder becomes a plain password-less, identity-less user - exactly
+        // the new pre-provisioning shape - rather than getting a bogus AuthenticationIdentity.
+        var bob = await db2.Users.SingleAsync(u => u.Username == "bob");
+        Assert.Null(bob.PasswordHash);
+        Assert.DoesNotContain(db2.AuthenticationIdentities, i => i.UserId == bob.Id);
+
+        // The old column/table are gone.
+        var hasKeycloakColumn = await db2.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(*) AS Value FROM pragma_table_info('Users') WHERE name = 'KeycloakSubjectId'").SingleAsync();
+        Assert.Equal(0, hasKeycloakColumn);
+    }
+
+    /// <summary>Auth.md §29: if an automatic migration can't safely preserve an existing identity
+    /// relationship, it must fail clearly rather than silently mis-assigning it. The old schema
+    /// never recorded which of several providers a user actually authenticated through, so with
+    /// more than one legacy provider present, no AuthenticationIdentity rows should be created at
+    /// all - affected users keep their account but need an admin-issued temporary password.</summary>
+    [Fact]
+    public async Task ApplyAsync_LegacyMultipleProviders_MigratesProvidersButLeavesIdentitiesUnlinked()
+    {
+        var (db1, search1) = NewContext();
+        await using (db1)
+        {
+            await CreateLegacyPreAuthRedesignDatabaseAsync(db1);
+            await db1.Database.ExecuteSqlRawAsync(
+                "INSERT INTO Users (KeycloakSubjectId, Username, Email, IsAdministrator, IsDisabled, CreatedAt) " +
+                "VALUES ('legacy-sub-1', 'alice', NULL, 0, 0, '2024-01-01T00:00:00Z');");
+            await db1.Database.ExecuteSqlRawAsync(
+                "INSERT INTO OidcProviders (Name, Authority, ClientId, Audience, RequireHttpsMetadata, IsEnabled, CreatedAt) " +
+                "VALUES ('Keycloak', 'https://auth.example.com/realms/markdown-hub', 'markdown-hub', 'markdown-hub', 1, 1, '2024-01-01T00:00:00Z');");
+            await db1.Database.ExecuteSqlRawAsync(
+                "INSERT INTO OidcProviders (Name, Authority, ClientId, Audience, RequireHttpsMetadata, IsEnabled, CreatedAt) " +
+                "VALUES ('Google', 'https://accounts.google.com', 'markdown-hub-2', 'markdown-hub-2', 1, 1, '2024-01-01T00:00:00Z');");
+        }
+
+        var (db2, search2) = NewContext();
+        await using var _ = db2;
+        await DatabaseMigrations.ApplyAsync(db2, search2);
+
+        Assert.Equal(2, await db2.AuthenticationProviders.CountAsync());
+        Assert.Empty(db2.AuthenticationIdentities);
+        var alice = await db2.Users.SingleAsync(u => u.Username == "alice");
+        Assert.Null(alice.PasswordHash); // keeps her account; needs an admin-issued temp password to get back in
+    }
+
+    [Fact]
+    public async Task ApplyAsync_NoLegacyOidcProvidersTable_SkipsMigrationCleanly()
+    {
+        // A brand-new install (or a database already past this migration) has no OidcProviders
+        // table at all - must not throw trying to read from it.
+        var (db, search) = NewContext();
+        await using var _ = db;
+
+        await DatabaseMigrations.ApplyAsync(db, search);
+
+        Assert.Empty(db.AuthenticationProviders);
+        Assert.Empty(db.AuthenticationIdentities);
     }
 }

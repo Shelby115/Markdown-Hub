@@ -27,7 +27,7 @@ public class WikiLinkSuggestionsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Suggest([FromQuery] string prefix, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         prefix ??= "";

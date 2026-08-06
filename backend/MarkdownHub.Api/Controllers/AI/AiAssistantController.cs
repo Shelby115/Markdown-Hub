@@ -66,7 +66,7 @@ public class AiAssistantController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Ask([FromBody] AssistantRequest request, CancellationToken ct)
     {
-        var user = await _currentUser.GetOrCreateAsync(ct);
+        var user = await _currentUser.GetCurrentAsync(ct);
         if (user is null) return Unauthorized();
 
         if (!Enum.TryParse<AssistantAction>(request.Action, ignoreCase: true, out var action))

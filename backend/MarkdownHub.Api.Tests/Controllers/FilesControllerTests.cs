@@ -42,7 +42,7 @@ public class FilesControllerTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
 
-        var admin = new AppUser { KeycloakSubjectId = "admin-sub", Username = "admin", IsAdministrator = true };
+        var admin = new AppUser { Username = "admin", NormalizedUsername = "ADMIN", IsAdministrator = true };
         _db.Users.Add(admin);
         _db.SaveChanges();
 
@@ -57,7 +57,7 @@ public class FilesControllerTests : IDisposable
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                 [
-                    new Claim(ClaimTypes.NameIdentifier, user.KeycloakSubjectId),
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                     new Claim("preferred_username", user.Username),
                 ]))
             }
@@ -120,7 +120,7 @@ public class FilesControllerTests : IDisposable
     [Fact]
     public async Task CreateFolder_UserWithoutEditPermission_ReturnsForbid()
     {
-        var plainUser = new AppUser { KeycloakSubjectId = "plain-sub", Username = "plain", IsAdministrator = false };
+        var plainUser = new AppUser { Username = "plain", NormalizedUsername = "PLAIN", IsAdministrator = false };
         _db.Users.Add(plainUser);
         _db.SaveChanges();
         var controller = BuildController(plainUser);
@@ -258,7 +258,7 @@ public class FilesControllerTests : IDisposable
     [Fact]
     public async Task RenameFolder_UpdatesFolderPermissionsPointingAtItOrNestedInsideIt()
     {
-        var otherUser = new AppUser { KeycloakSubjectId = "other-sub", Username = "other" };
+        var otherUser = new AppUser { Username = "other", NormalizedUsername = "OTHER" };
         _db.Users.Add(otherUser);
         await _db.SaveChangesAsync();
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = otherUser.Id, FolderPath = "Campaign", Level = PermissionLevel.Edit });
@@ -322,7 +322,7 @@ public class FilesControllerTests : IDisposable
     public async Task RenameFolder_UserWithoutManagePermission_ReturnsForbid()
     {
         await _sut.CreateFolder("Campaign", CancellationToken.None);
-        var plainUser = new AppUser { KeycloakSubjectId = "plain-sub-2", Username = "plain2", IsAdministrator = false };
+        var plainUser = new AppUser { Username = "plain2", NormalizedUsername = "PLAIN2", IsAdministrator = false };
         _db.Users.Add(plainUser);
         _db.SaveChanges();
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = plainUser.Id, FolderPath = "Campaign", Level = PermissionLevel.Edit });
@@ -402,7 +402,7 @@ public class FilesControllerTests : IDisposable
     public async Task DeleteFolder_UserWithoutManagePermission_ReturnsForbid()
     {
         await _sut.CreateFolder("Campaign", CancellationToken.None);
-        var plainUser = new AppUser { KeycloakSubjectId = "plain-sub-3", Username = "plain3", IsAdministrator = false };
+        var plainUser = new AppUser { Username = "plain3", NormalizedUsername = "PLAIN3", IsAdministrator = false };
         _db.Users.Add(plainUser);
         _db.SaveChanges();
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = plainUser.Id, FolderPath = "Campaign", Level = PermissionLevel.Edit });

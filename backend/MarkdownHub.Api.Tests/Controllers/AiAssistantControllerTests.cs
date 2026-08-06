@@ -36,7 +36,7 @@ public class AiAssistantControllerTests : IDisposable
             .Options;
         _db = new AppDbContext(options);
 
-        _user = new AppUser { KeycloakSubjectId = "sub-1", Username = "gm" };
+        _user = new AppUser { Username = "gm", NormalizedUsername = "GM" };
         _db.Users.Add(_user);
         // Only the "Public" folder is granted - "Private/Secret.md" deliberately is not.
         _db.FolderPermissions.Add(new FolderPermission { AppUserId = 0, FolderPath = "Public", Level = PermissionLevel.View });
@@ -56,7 +56,7 @@ public class AiAssistantControllerTests : IDisposable
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                 [
-                    new Claim(ClaimTypes.NameIdentifier, _user.KeycloakSubjectId),
+                    new Claim(ClaimTypes.NameIdentifier, _user.Id.ToString()),
                     new Claim("preferred_username", _user.Username),
                 ]))
             }

@@ -47,8 +47,8 @@ public class VersionsControllerTests : IAsyncLifetime
         var versions = new VersionService(_db);
         _files = new MarkdownFileService(_hub, _db, search, versions);
 
-        _admin = new AppUser { KeycloakSubjectId = "admin-sub", Username = "admin", IsAdministrator = true };
-        _plainUser = new AppUser { KeycloakSubjectId = "plain-sub", Username = "plain" };
+        _admin = new AppUser { Username = "admin", NormalizedUsername = "ADMIN", IsAdministrator = true };
+        _plainUser = new AppUser { Username = "plain", NormalizedUsername = "PLAIN" };
         _db.Users.AddRange(_admin, _plainUser);
         await _db.SaveChangesAsync();
     }
@@ -69,7 +69,7 @@ public class VersionsControllerTests : IAsyncLifetime
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity(
                 [
-                    new Claim(ClaimTypes.NameIdentifier, user.KeycloakSubjectId),
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                     new Claim("preferred_username", user.Username),
                 ]))
             }

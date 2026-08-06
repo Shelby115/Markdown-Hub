@@ -6,23 +6,18 @@
   "sslRequired": "external",
   "clients": [
     {
-      "clientId": "markdown-hub-spa",
-      "publicClient": true,
+      "clientId": "markdown-hub",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "change-me-in-production",
       "protocol": "openid-connect",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:5173/*", "http://localhost:8085/*"],
-      "webOrigins": ["http://localhost:5173", "http://localhost:8085"],
+      "redirectUris": ["http://localhost:8085/api/auth/external/keycloak/callback"],
+      "webOrigins": ["http://localhost:8085"],
       "attributes": {
         "pkce.code.challenge.method": "S256"
       }
-    },
-    {
-      "clientId": "markdown-hub-api",
-      "publicClient": false,
-      "bearerOnly": true,
-      "protocol": "openid-connect",
-      "secret": "change-me-in-production"
     }
   ],
   "users": [

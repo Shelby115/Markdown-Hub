@@ -66,7 +66,10 @@ public class BackupService
     private async Task EnforceRetentionAsync(string backupDir, CancellationToken ct)
     {
         var retain = _config.GetValue<int?>("Hub:BackupsToRetain") ?? 14;
-        var all = await _db.Backups.OrderByDescending(b => b.CreatedAt).ToListAsync(ct);
+        // SQLite can't translate ORDER BY over a DateTimeOffset column - fetch then sort
+        // client-side (same limitation/workaround used elsewhere in this codebase, e.g.
+        // AuditLogService).
+        var all = (await _db.Backups.ToListAsync(ct)).OrderByDescending(b => b.CreatedAt).ToList();
         foreach (var stale in all.Skip(retain))
         {
             var path = Path.Combine(backupDir, stale.FileName);

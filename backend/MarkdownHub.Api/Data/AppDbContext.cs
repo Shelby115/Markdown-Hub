@@ -16,14 +16,37 @@ public class AppDbContext : DbContext
     public DbSet<BackupRecord> Backups => Set<BackupRecord>();
     public DbSet<AppSetting> Settings => Set<AppSetting>();
     public DbSet<DocumentVersion> DocumentVersions => Set<DocumentVersion>();
-    public DbSet<OidcProvider> OidcProviders => Set<OidcProvider>();
+    public DbSet<AuthenticationProvider> AuthenticationProviders => Set<AuthenticationProvider>();
+    public DbSet<AuthenticationIdentity> AuthenticationIdentities => Set<AuthenticationIdentity>();
+    public DbSet<Session> Sessions => Set<Session>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AppUser>()
-            .HasIndex(u => u.KeycloakSubjectId).IsUnique();
+            .HasIndex(u => u.NormalizedUsername).IsUnique();
         modelBuilder.Entity<AppUser>()
             .HasIndex(u => u.Username).IsUnique();
+
+        modelBuilder.Entity<AuthenticationProvider>()
+            .HasIndex(p => p.Name).IsUnique();
+
+        modelBuilder.Entity<AuthenticationIdentity>()
+            .HasIndex(i => new { i.AuthenticationProviderId, i.Subject }).IsUnique();
+        modelBuilder.Entity<AuthenticationIdentity>()
+            .HasIndex(i => i.UserId);
+        modelBuilder.Entity<AuthenticationIdentity>()
+            .HasOne(i => i.User)
+            .WithMany(u => u.AuthenticationIdentities)
+            .HasForeignKey(i => i.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<AuthenticationIdentity>()
+            .HasOne(i => i.Provider)
+            .WithMany()
+            .HasForeignKey(i => i.AuthenticationProviderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Session>()
+            .HasIndex(s => s.UserId);
 
         modelBuilder.Entity<FolderPermission>()
             .HasIndex(p => new { p.AppUserId, p.FolderPath }).IsUnique();

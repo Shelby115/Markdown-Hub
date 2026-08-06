@@ -4,34 +4,17 @@
 
 ## Setup Guide
 
-Self-hosting checklist. There's no bundled identity provider and no local/password login —
-you bring your own OIDC provider, and the very first thing to get right is making sure at
-least one of them works, since there is no other way into the app (not even the admin page).
+The app is fully usable with **local username/password login only** — no external identity
+provider is required, ever. External providers (Google, GitHub, Facebook, Keycloak, or any
+other OIDC/OAuth 2.0 provider) are an optional enhancement any user can link to their account
+once the app is up.
 
 ### Prerequisites
 
 - Docker + Docker Compose.
-- An OIDC provider you control (Keycloak, Authentik, Zitadel, Auth0, ...) that can act as a **public SPA client**: authorization code + PKCE, no client secret.
+- That's it. An external identity provider is entirely optional - see "External providers" below.
 
-### 1. Set up your identity provider
-
-Whatever provider you use, its client needs:
-
-| Requirement | Value |
-|---|---|
-| Client type | Public (no client secret / "client authentication" off) |
-| Flow | Authorization code + PKCE (S256) |
-| Redirect URI | `<your frontend origin>/auth/callback` (e.g. `http://localhost:8086/auth/callback`) |
-| Audience claim | The token's `aud` must contain a value you'll put in `OIDC_DEFAULT_AUDIENCE` |
-
-**Keycloak specifics:** import `keycloak/markdown-hub-client-import.json` into your realm as a
-starting point. It's a public client with PKCE required and an audience mapper already
-attached — **Keycloak does not include a client's own ID in `aud` by default**, so without
-that mapper (or an equivalent one you add yourself) every token gets rejected as a bad
-audience. If you use a different provider, check whether it needs the same kind of explicit
-audience configuration.
-
-### 2. Configure `.env`
+### 1. Configure `.env`
 
 ```bash
 cp .env.example .env
@@ -39,123 +22,120 @@ cp .env.example .env
 
 | Variable | Required | Notes |
 |---|---|---|
-| `OIDC_DEFAULT_AUTHORITY` | Yes (first boot) | Issuer URL. Discovery doc must be reachable at `<authority>/.well-known/openid-configuration`. |
-| `OIDC_DEFAULT_CLIENT_ID` | Yes (first boot) | The public client ID from step 1. |
-| `OIDC_DEFAULT_AUDIENCE` | Yes (first boot) | Must match the `aud` your provider's tokens actually carry. |
-| `OIDC_DEFAULT_NAME` | No | Display label (login screen / admin page). Default `Default`. |
-| `OIDC_DEFAULT_REQUIRE_HTTPS_METADATA` | No | Set `false` only if the authority is `http://` (e.g. a same-network dev IdP). Default `true`. |
-| `ADMIN_USERNAME` | No, but recommended | See below. |
+| `ADMIN_USERNAME` | No (default `admin`) | The initial administrator's username. |
+| `ADMIN_PASSWORD` | Recommended | The initial administrator's password, set on first boot only. Leave blank and you'll have no way to log in until you set one (see below). |
+| `ADMIN_PASSWORD_FILE` | No | Path to a Docker/Podman secret file - takes precedence over `ADMIN_PASSWORD` if the file exists. |
 | `HUB_HOST_PATH` | No | Where Markdown files live on the host. Relative paths are created automatically; point it at an existing folder to import an existing hub. Default `./data/markdown`. |
 | `API_PORT` / `FRONTEND_PORT` | No | Default `8085` / `8086`. |
-| `FRONTEND_ORIGIN` | Only if exposed beyond localhost | Your real external origin (scheme + host, no trailing slash) — added to allowed CORS origins. Forgetting this means every API call from your real domain gets CORS-blocked even though login itself works. |
+| `FRONTEND_ORIGIN` | Only if exposed beyond localhost | Your real external origin (scheme + host, no trailing slash) — added to allowed CORS origins and used as the default sign-in redirect target. |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | Optional AI-assisted editing, needs a reachable Ollama instance. App runs fine without it. |
 
-**`OIDC_DEFAULT_*` only matters once** — the app reads it exactly once, to seed the very first
-row of the `OidcProviders` table on a brand-new database. After that boot, these env vars are
-dead: providers are managed entirely through Admin → OIDC providers, and editing `.env` later
-does nothing. This is also why getting step 1 right *before* first boot matters so much — get
-it wrong and you have no provider to log in with, and thus no way to reach the admin page to
-fix it. If that happens, the fastest way out is stopping the stack, deleting the SQLite DB
-volume, correcting `.env`, and starting fresh (fine before real data exists; not something to
-do once you have real content).
+`OIDC_DEFAULT_*`, `AUTH_PUBLIC_API_ORIGIN`, `JWT_SIGNING_KEY`, and `SESSION_LIFETIME_HOURS` are
+all optional too - see "External providers" and "Advanced" below.
 
-### 3. (Optional) NAT hairpin / loopback
-
-If your identity provider and this app run on the same host/LAN but your router can't route a
-public hostname back to itself (common on home networks), requests from inside the API
-container to your provider's public URL will fail even though the same URL works fine from a
-browser. Fix: add a `docker-compose.override.yml` next to `docker-compose.yml` (Compose merges
-it automatically; keep it out of version control, it's host-specific):
-
-```yaml
-services:
-  api:
-    extra_hosts:
-      - "your-idp-hostname.example.com:host-gateway"
-```
-
-### 4. Start it
+### 2. Start it
 
 ```bash
 docker compose up --build
 ```
 
 - Frontend: `http://localhost:${FRONTEND_PORT:-8086}`
-- API health check: `http://localhost:${API_PORT:-8085}/health` — checks app, hub directory,
-  database, and OIDC provider reachability. Start here if something's wrong; it'll say which
-  piece is broken.
+- API health check: `http://localhost:${API_PORT:-8085}/health` — checks app, hub directory, and
+  database. An external OIDC provider being unconfigured or unreachable is reported but never
+  makes the app "unhealthy" - local login never depends on one.
 
-### 5. Becoming admin
+### 3. Log in
 
-Two ways, don't need both:
+Sign in with `ADMIN_USERNAME` / `ADMIN_PASSWORD` from step 1. That's it - the app is fully
+usable from here with zero external providers configured.
 
-- **`ADMIN_USERNAME`** — guarantees that exact username becomes admin the moment it first signs
-  in. It's create-only: if that username already exists as a non-admin, this does *not*
-  retroactively promote them (use Admin → Users → Promote for that instead).
-- **First login ever** — if `ADMIN_USERNAME` isn't set, whoever signs in first automatically
-  becomes admin. Fine for a single-operator instance; race-prone if multiple people might sign
-  in before you do.
+**Didn't set `ADMIN_PASSWORD` before first boot?** The admin account is never created without a
+password (so you can't end up with a reserved-but-unusable username). Set `ADMIN_PASSWORD` in
+`.env` now and run `docker compose up -d` again - the account will be created on this boot
+instead. If a database already exists from a previous run *without* an admin account, this still
+works the same way, since seeding only ever creates a brand-new row, never overwrites one.
 
-### Managing providers after setup
+### External providers (optional)
 
-Admin → OIDC providers: add/edit/enable/disable/delete providers at runtime, no restart or env
-changes needed. **At least one enabled provider must always exist** — the app refuses to
-delete or disable the last one, so you can't lock yourself out *that* way once you're past first
-boot. With more than one enabled provider, the login screen shows a picker instead of
-auto-redirecting.
+Add any number of external providers from **Admin → Authentication providers** at any time, no
+restart or `.env` changes needed. Presets exist for Google, GitHub, Facebook, and Keycloak, plus
+Generic OIDC / Generic OAuth 2.0 for anything else. For each provider you'll supply:
 
-**That safety net does not cover *editing* a provider.** Updating an existing (possibly your
-only) provider's Client ID/Audience/Authority to something that doesn't match what your IdP
-actually issues locks out everyone immediately, including admins - there's no equivalent "don't
-save if this breaks the last working provider" check on Update, and if it's your only provider
-you can no longer reach Admin to undo it through the UI.
+| Field | Notes |
+|---|---|
+| Client ID / Client secret | From your provider's app registration. The secret is encrypted at rest and never shown again after entry. |
+| Authority (OIDC) | Issuer URL - discovery doc must be reachable at `<authority>/.well-known/openid-configuration`. |
+| Authorization / Token / Userinfo endpoints (OAuth 2.0) | Pre-filled by the preset for known providers; enter manually for a custom OAuth 2.0 provider. |
 
-**Safer pattern:** when changing an *already-working* provider's settings (e.g. switching to a
-new IdP client), add the new configuration as a **second, separate provider** first and leave
-the old one enabled. Test signing in with the new one from the login screen's picker. Only once
-that works, disable/delete the old provider. Editing a working provider in place should be a
-last resort, not the default move.
+**The redirect URI your provider needs is always
+`<api-origin>/api/auth/external/<provider-name>/callback`** (e.g.
+`http://localhost:8085/api/auth/external/keycloak/callback` for local Docker Compose use) - the
+**API**, not the frontend, since the server performs the authorization-code exchange itself.
+This means your provider's client must be **confidential** (client secret required, not a public
+SPA client) — a change from earlier versions of this app.
 
-**If you do lock yourself out** (every provider now issues tokens the app rejects, so nobody -
-not even an admin - can sign in to fix it from Admin): the fix has to happen directly against
-the database, since there's no other way in.
+**Removing every provider, or all of them failing, never locks anyone out** — local
+username/password sign-in is always available as a fallback, and the app refuses any action
+(disabling/deleting a provider, removing your last linked identity) that would leave the *last
+remaining administrator* with no way to sign in at all.
 
-1. Find the API's SQLite database. In the default Docker Compose setup it's inside the
-   `db-data` named volume (`<project-name>_db-data`; the exact name depends on your Compose
-   project/folder name - `docker volume ls` will show it) as `/data/db/markdown-hub.db`.
-2. Inspect the `OidcProviders` table and fix whichever column is wrong (usually `Audience` or
-   `ClientId`) to match what your identity provider's client is actually configured to issue,
-   e.g. via a throwaway container:
-   ```bash
-   docker run --rm -v <project-name>_db-data:/db alpine sh -c \
-     "apk add --no-cache sqlite && sqlite3 /db/markdown-hub.db \
-      \"SELECT * FROM OidcProviders;\""
-   ```
-   then, once you know what's wrong:
-   ```bash
-   docker run --rm -v <project-name>_db-data:/db alpine sh -c \
-     "apk add --no-cache sqlite && sqlite3 /db/markdown-hub.db \
-      \"UPDATE OidcProviders SET Audience = 'the-correct-value' WHERE Id = <id>;\""
-   ```
-3. **Restart the `api` container** (`docker compose restart api`). The corrected row alone
-   isn't enough - provider config is cached in memory for up to 60 seconds per request and
-   indefinitely if nothing triggers a refresh, so a stale rejection can otherwise persist well
-   past when the database itself is already fixed, making the fix look like it didn't work.
-4. Try signing in again from a fresh page load.
+**Inviting someone else:** create their account from Admin → Users with a temporary password,
+and give it to them out of band. They log in locally once, then link Google/GitHub/etc.
+themselves from their own Account page - accounts are never auto-linked by matching username or
+email, only by a user explicitly linking a provider to an account they're already signed into.
 
-### Other gotchas
+#### Seeding one provider on first boot (optional convenience)
 
-- **Redirect URI mismatch** is the most common first-login failure — it must be exactly
-  `<origin>/auth/callback`, including scheme and port.
-- **Audience mismatch** is the second most common — `OIDC_DEFAULT_AUDIENCE` must equal a value
-  actually present in your tokens' `aud`, which for many providers (Keycloak included) isn't
-  there by default and needs explicit client configuration.
-- The app never stores or needs a client secret — if your provider insists on one, you've
-  configured it as a confidential client instead of a public one.
-- `RequireHttpsMetadata=true` (the default) will refuse an `http://` authority outright; only
-  turn it off for a same-network/dev IdP you trust.
-- Nothing here bypasses OIDC — there is no local admin login, "setup mode," or password
-  fallback. Get the identity provider working first; everything else follows from that.
+If you'd rather not click through the admin page on a brand-new install, `OIDC_DEFAULT_*` env
+vars seed one OIDC provider automatically the first time the app boots against an empty
+database - purely a convenience; skip it and add providers via the admin page instead. Requires
+`OIDC_DEFAULT_AUTHORITY`, `OIDC_DEFAULT_CLIENT_ID`, and now also `OIDC_DEFAULT_CLIENT_SECRET`
+(see `.env.example`) all set together, or nothing is seeded. Only read once, on an empty
+database - editing `.env` afterward has no effect.
+
+### Advanced
+
+- **`AUTH_PUBLIC_API_ORIGIN`** — only needed if the API sits behind a reverse proxy that doesn't
+  forward the original scheme/host, so the app can't otherwise compute a correct callback
+  redirect URI for external providers.
+- **`JWT_SIGNING_KEY`** — the app generates and persists its own signing key on first boot; only
+  override this for a multi-instance deployment where every instance must share one key.
+- **`SESSION_LIFETIME_HOURS`** (default 168, i.e. 7 days) — how long a login session lasts before
+  needing to sign in again. Sessions can also be reviewed/revoked individually from Account →
+  Sessions (or by an admin, for any user).
+- **NAT hairpin / loopback**: if an external provider you're using runs on the same host/LAN but
+  your router can't route a public hostname back to itself (common on home networks), requests
+  from inside the API container to the provider's public URL will fail even though the same URL
+  works fine from a browser. Fix: add a `docker-compose.override.yml` next to
+  `docker-compose.yml` (Compose merges it automatically; keep it out of version control, it's
+  host-specific):
+
+  ```yaml
+  services:
+    api:
+      extra_hosts:
+        - "your-idp-hostname.example.com:host-gateway"
+  ```
+
+### Upgrading from an older version (provider-only auth)
+
+Older versions of this app required an external OIDC provider for every login, with no local
+password option. On first boot after upgrading:
+
+- Existing users keep their accounts, permissions, and history - nothing is deleted.
+- Your existing OIDC provider is migrated into the new admin page, but comes across **disabled**
+  and without a client secret (the old flow never needed one). To keep using it: reconfigure its
+  client as **confidential** (add a secret), update its redirect URI to the new
+  `<api-origin>/api/auth/external/<name>/callback` shape, enter the secret and re-enable the
+  provider from Admin → Authentication providers.
+- Existing users' linked identity is preserved automatically *if* you only ever had one OIDC
+  provider configured. If you had more than one, the app can't safely guess which provider each
+  user authenticated through (the old design never recorded that) - those users keep their
+  accounts but will need an admin to set a temporary password for them (Admin → Users → Set
+  password) so they can log in locally once and re-link their provider themselves.
+- Set `ADMIN_PASSWORD` before this upgrade's first boot so you have a guaranteed way in
+  regardless of provider state; otherwise you'll need to either fix up the migrated provider
+  first, or set the password afterward and restart (see "Log in" above).
 
 ### AI assistant (optional)
 
@@ -171,9 +151,8 @@ instance you provide; nothing is sent to a third-party API.
    | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Assumes Ollama runs on the same machine as Docker, outside any container. Point it elsewhere (another host, another container's service name) if that's not the case. |
    | `OLLAMA_MODEL` | `gpt-oss:20b` | Must match a model you've actually pulled. |
 
-3. Restart the stack (`docker compose up -d`). Unlike the OIDC variables, these aren't a
-   one-time seed — they're read on every container start, so changing them later just needs a
-   restart, not a database reset.
+3. Restart the stack (`docker compose up -d`). These aren't a one-time seed — they're read on
+   every container start, so changing them later just needs a restart, not a database reset.
 
 If Ollama is unreachable or has no model installed, the AI Assistant panel says so directly
 ("Ollama installation not found...") instead of failing silently on first use — that's the
