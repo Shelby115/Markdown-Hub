@@ -25,13 +25,22 @@ public static class StartupSeeder
     public static async Task SeedAdminAsync(AppDbContext db, IConfiguration configuration, IPasswordHasher<AppUser> hasher, CancellationToken ct = default)
     {
         var username = configuration["Admin:Username"]?.Trim();
-        if (string.IsNullOrEmpty(username)) return;
+        if (string.IsNullOrEmpty(username))
+        {
+            return;
+        }
 
         var password = ResolveAdminPassword(configuration);
-        if (string.IsNullOrEmpty(password)) return;
+        if (string.IsNullOrEmpty(password))
+        {
+            return;
+        }
 
         var normalized = AppUser.Normalize(username);
-        if (await db.Users.AnyAsync(u => u.NormalizedUsername == normalized, ct)) return;
+        if (await db.Users.AnyAsync(u => u.NormalizedUsername == normalized, ct))
+        {
+            return;
+        }
 
         var user = new AppUser
         {
@@ -48,7 +57,10 @@ public static class StartupSeeder
     {
         var passwordFile = configuration["Admin:PasswordFile"]?.Trim();
         if (!string.IsNullOrEmpty(passwordFile) && File.Exists(passwordFile))
+        {
             return File.ReadAllText(passwordFile).Trim();
+        }
+
         return configuration["Admin:Password"]?.Trim();
     }
 
@@ -62,13 +74,18 @@ public static class StartupSeeder
     /// </summary>
     public static async Task SeedDefaultProviderAsync(AppDbContext db, IConfiguration configuration, ProviderSecretProtector secretProtector, CancellationToken ct = default)
     {
-        if (await db.AuthenticationProviders.AnyAsync(ct)) return;
+        if (await db.AuthenticationProviders.AnyAsync(ct))
+        {
+            return;
+        }
 
         var authority = configuration["OidcDefault:Authority"]?.Trim();
         var clientId = configuration["OidcDefault:ClientId"]?.Trim();
         var clientSecret = ResolveDefaultProviderSecret(configuration);
         if (string.IsNullOrEmpty(authority) || string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+        {
             return; // nothing fully configured yet - a from-scratch install with no external provider set up
+        }
 
         var displayName = configuration["OidcDefault:Name"]?.Trim() is { Length: > 0 } name ? name : "Default";
         var config = new ProviderConfiguration
@@ -96,7 +113,10 @@ public static class StartupSeeder
     {
         var secretFile = configuration["OidcDefault:ClientSecretFile"]?.Trim();
         if (!string.IsNullOrEmpty(secretFile) && File.Exists(secretFile))
+        {
             return File.ReadAllText(secretFile).Trim();
+        }
+
         return configuration["OidcDefault:ClientSecret"]?.Trim();
     }
 }

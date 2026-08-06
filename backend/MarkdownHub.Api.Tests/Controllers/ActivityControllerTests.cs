@@ -131,7 +131,10 @@ public class ActivityControllerTests : IDisposable
     [Fact]
     public async Task Query_Pagination_SplitsResultsAcrossPages()
     {
-        for (var i = 0; i < 5; i++) Seed(_alice, "File.Modify", DateTimeOffset.UtcNow.AddMinutes(-i));
+        for (var i = 0; i < 5; i++)
+        {
+            Seed(_alice, "File.Modify", DateTimeOffset.UtcNow.AddMinutes(-i));
+        }
 
         var page1 = Assert.IsType<ActivityPageDto>(Assert.IsType<OkObjectResult>(
             await _sut.Query(null, null, null, null, null, page: 1, pageSize: 2, ct: CancellationToken.None)).Value);

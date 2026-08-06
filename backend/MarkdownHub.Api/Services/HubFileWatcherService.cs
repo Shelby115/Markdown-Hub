@@ -79,13 +79,22 @@ public class HubFileWatcherService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
-            if (_pending.IsEmpty && _pendingRenames.IsEmpty) continue;
+            if (_pending.IsEmpty && _pendingRenames.IsEmpty)
+            {
+                continue;
+            }
 
             var renames = new List<(string OldFullPath, string NewFullPath)>();
-            while (_pendingRenames.TryDequeue(out var rename)) renames.Add(rename);
+            while (_pendingRenames.TryDequeue(out var rename))
+            {
+                renames.Add(rename);
+            }
 
             var batch = _pending.Keys.ToList();
-            foreach (var path in batch) _pending.TryRemove(path, out _);
+            foreach (var path in batch)
+            {
+                _pending.TryRemove(path, out _);
+            }
 
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -113,7 +122,9 @@ public class HubFileWatcherService : BackgroundService
                     }
                     await search.RemoveAsync(oldRelative, stoppingToken);
                     if (File.Exists(newFullPath))
+                    {
                         await fileService.IndexPageAsync(newRelative, null, stoppingToken);
+                    }
                 }
                 catch (Exception ex)
                 {

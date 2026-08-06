@@ -6,19 +6,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.Admin;
 
-// IpAddress is included even in the summary (not just detail) because unauthenticated events
-// (UserId null) have no username to show - section 2.6 requires the IP to be the *primary*
-// identifier for those in the main list, not something hidden behind an expand action.
-public record ActivitySummaryDto(int Id, DateTimeOffset Timestamp, int? UserId, string? Username, string Action,
-    string? ObjectType, int? ObjectId, string? TargetPath, int OccurrenceCount, DateTimeOffset? LastOccurredAtUtc,
-    int? RelatedVersionId, string? IpAddress);
-
-public record ActivityDetailDto(int Id, DateTimeOffset Timestamp, int? UserId, string? Username, string Action,
-    string? ObjectType, int? ObjectId, string? TargetPath, string? Details, string? IpAddress,
-    int OccurrenceCount, DateTimeOffset? LastOccurredAtUtc, int? RelatedVersionId);
-
-public record ActivityPageDto(IReadOnlyList<ActivitySummaryDto> Items, int TotalCount, int Page, int PageSize);
-
 /// <summary>
 /// Activity Log API - admin-only, per Activity-And-History.md section 2.7 ("Regular users must
 /// not have access to the global activity log"). Everything here operates on AuditLogEntry, the
@@ -59,7 +46,11 @@ public class ActivityController : ControllerBase
         // guaranteed to still exist once cleanup has run.
         var effectiveFrom = from ?? now.AddDays(-defaultDays);
         var retentionFloor = now.AddDays(-retentionDays);
-        if (effectiveFrom < retentionFloor) effectiveFrom = retentionFloor;
+        if (effectiveFrom < retentionFloor)
+        {
+            effectiveFrom = retentionFloor;
+        }
+
         var effectiveTo = to ?? now;
 
         page = Math.Max(1, page);
@@ -71,10 +62,20 @@ public class ActivityController : ControllerBase
         // client-side afterward. AuditLog is already retention-bounded (30 days by default), so
         // this stays a bounded fetch, not an unbounded table scan.
         var query = _db.AuditLog.AsQueryable();
-        if (userId is not null) query = query.Where(a => a.AppUserId == userId);
-        if (!string.IsNullOrWhiteSpace(action)) query = query.Where(a => a.Action == action);
+        if (userId is not null)
+        {
+            query = query.Where(a => a.AppUserId == userId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            query = query.Where(a => a.Action == action);
+        }
+
         if (!string.IsNullOrWhiteSpace(objectSearch))
+        {
             query = query.Where(a => a.TargetPath != null && a.TargetPath.Contains(objectSearch));
+        }
 
         var candidates = await query.OrderByDescending(a => a.Id).ToListAsync(ct);
         var filtered = candidates.Where(a => a.Timestamp >= effectiveFrom && a.Timestamp <= effectiveTo).ToList();
@@ -98,7 +99,10 @@ public class ActivityController : ControllerBase
     public async Task<IActionResult> GetDetail(int id, CancellationToken ct)
     {
         var entry = await _db.AuditLog.FirstOrDefaultAsync(a => a.Id == id, ct);
-        if (entry is null) return NotFound();
+        if (entry is null)
+        {
+            return NotFound();
+        }
 
         var username = entry.AppUserId is { } userId ? (await _db.Users.FindAsync([userId], ct))?.Username : null;
         return Ok(new ActivityDetailDto(

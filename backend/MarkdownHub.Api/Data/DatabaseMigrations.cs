@@ -218,7 +218,10 @@ public static class DatabaseMigrations
     private static async Task MigrateLegacyOidcDataAsync(AppDbContext db, CancellationToken ct)
     {
         var legacyProviders = await ReadLegacyOidcProvidersAsync(db, ct);
-        if (legacyProviders.Count == 0) return;
+        if (legacyProviders.Count == 0)
+        {
+            return;
+        }
 
         var providerIds = new Dictionary<int, int>(); // legacy OidcProviders.Id -> new AuthenticationProviders.Id
         foreach (var legacy in legacyProviders)
@@ -254,7 +257,11 @@ public static class DatabaseMigrations
             var now = DateTimeOffset.UtcNow;
             foreach (var (userId, subject) in subjects)
             {
-                if (subject.StartsWith("pending:", StringComparison.Ordinal)) continue; // becomes a plain pending user instead
+                if (subject.StartsWith("pending:", StringComparison.Ordinal))
+                {
+                    continue; // becomes a plain pending user instead
+                }
+
                 db.AuthenticationIdentities.Add(new AuthenticationIdentity
                 {
                     UserId = userId,
@@ -297,7 +304,10 @@ public static class DatabaseMigrations
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                if (!reader.IsDBNull(1)) rows.Add((reader.GetInt32(0), reader.GetString(1)));
+                if (!reader.IsDBNull(1))
+                {
+                    rows.Add((reader.GetInt32(0), reader.GetString(1)));
+                }
             }
         }, ct);
         return rows;
@@ -328,14 +338,21 @@ public static class DatabaseMigrations
     {
         var conn = db.Database.GetDbConnection();
         var wasClosed = conn.State != ConnectionState.Open;
-        if (wasClosed) await conn.OpenAsync(ct);
+        if (wasClosed)
+        {
+            await conn.OpenAsync(ct);
+        }
+
         try
         {
             await action(conn);
         }
         finally
         {
-            if (wasClosed) await conn.CloseAsync();
+            if (wasClosed)
+            {
+                await conn.CloseAsync();
+            }
         }
     }
 }

@@ -4,8 +4,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.Admin;
 
-public record SetHistorySettingsRequest(int VersionRetentionDays, int ActivityRetentionDays, int ActivityDefaultDays);
-
 /// <summary>Admin-only retention configuration for Version History and the Activity Log
 /// (Activity-And-History.md section 6). Backed by AppSetting, same as the AI model override.</summary>
 [ApiController]
@@ -41,7 +39,9 @@ public class HistorySettingsController : ControllerBase
         }
 
         if (request.ActivityDefaultDays > request.ActivityRetentionDays)
+        {
             return BadRequest(new { message = "The default activity view window can't exceed the activity retention period." });
+        }
 
         var actingUser = await _currentUser.GetCurrentAsync(ct);
         await _settings.SetAsync(HistorySettingsService.VersionRetentionDaysKey, request.VersionRetentionDays, ct);

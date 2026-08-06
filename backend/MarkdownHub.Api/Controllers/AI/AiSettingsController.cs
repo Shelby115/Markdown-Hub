@@ -7,9 +7,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.AI;
 
-public record AiSettingsResponse(string? SelectedModel, string ConfiguredDefaultModel, string EffectiveModel);
-public record SetAiModelRequest(string? Model);
-
 /// <summary>
 /// Admin-only control over which Ollama model the whole app uses. This is a single, shared,
 /// app-wide setting (not per-user) - everyone's AI-assisted editing and knowledge assistant
@@ -68,7 +65,10 @@ public class AiSettingsController : ControllerBase
 
         if (string.IsNullOrEmpty(trimmed))
         {
-            if (setting is not null) _db.Settings.Remove(setting);
+            if (setting is not null)
+            {
+                _db.Settings.Remove(setting);
+            }
         }
         else if (setting is null)
         {

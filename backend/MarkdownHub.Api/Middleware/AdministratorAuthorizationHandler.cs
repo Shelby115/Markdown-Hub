@@ -4,8 +4,6 @@ using MarkdownHub.Api.Data;
 
 namespace MarkdownHub.Api.Middleware;
 
-public class RequireAdministratorRequirement : IAuthorizationRequirement { }
-
 /// <summary>
 /// Checks the local AppUser.IsAdministrator flag - never trusts an external provider's claims
 /// directly, since app-level admin status is managed entirely inside this application (see
@@ -26,13 +24,18 @@ public class AdministratorAuthorizationHandler : AuthorizationHandler<RequireAdm
     {
         var subject = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
             ?? context.User.FindFirst("sub")?.Value;
-        if (!int.TryParse(subject, out var userId)) return;
+        if (!int.TryParse(subject, out var userId))
+        {
+            return;
+        }
 
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var user = await db.Users.FindAsync(userId);
 
         if (user is { IsAdministrator: true, IsDisabled: false })
+        {
             context.Succeed(requirement);
+        }
     }
 }

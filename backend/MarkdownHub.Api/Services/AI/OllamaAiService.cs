@@ -1,5 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Data.Entities;
@@ -72,7 +71,9 @@ public class OllamaAiService : IAiService
 
         var content = parsed?.Message?.Content;
         if (string.IsNullOrWhiteSpace(content))
+        {
             throw new AiServiceException("The AI service returned an empty response.");
+        }
 
         return content.Trim();
     }
@@ -119,57 +120,4 @@ public class OllamaAiService : IAiService
     }
 
     private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
-}
-
-public class OllamaChatMessage
-{
-    public OllamaChatMessage() { }
-    public OllamaChatMessage(string role, string content)
-    {
-        Role = role;
-        Content = content;
-    }
-
-    [JsonPropertyName("role")]
-    public string Role { get; set; } = "";
-
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = "";
-}
-
-public class OllamaChatRequest
-{
-    public OllamaChatRequest(string model, List<OllamaChatMessage> messages, bool stream)
-    {
-        Model = model;
-        Messages = messages;
-        Stream = stream;
-    }
-
-    [JsonPropertyName("model")]
-    public string Model { get; set; }
-
-    [JsonPropertyName("messages")]
-    public List<OllamaChatMessage> Messages { get; set; }
-
-    [JsonPropertyName("stream")]
-    public bool Stream { get; set; }
-}
-
-public class OllamaChatResponse
-{
-    [JsonPropertyName("message")]
-    public OllamaChatMessage? Message { get; set; }
-}
-
-public class OllamaTagsResponse
-{
-    [JsonPropertyName("models")]
-    public List<OllamaModelInfo>? Models { get; set; }
-}
-
-public class OllamaModelInfo
-{
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = "";
 }

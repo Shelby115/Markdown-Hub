@@ -5,17 +5,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.AI;
 
-public enum AssistantAction
-{
-    Ask,
-    Summarize,
-    ExpandTopic,
-}
-
-public record AssistantRequest(string Action, string? Question, List<string> ContextPaths);
-public record AssistantResultCard(string Title, string Content);
-public record AssistantResponse(List<AssistantResultCard> Results);
-
 /// <summary>
 /// AI knowledge assistant: takes a set of hub pages the caller explicitly chose as context,
 /// plus an action/question, and returns one or more result cards for the user to review. Never
@@ -66,16 +55,26 @@ public class AiAssistantController : ControllerBase
     public async Task<IActionResult> Ask([FromBody] AssistantRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         if (!Enum.TryParse<AssistantAction>(request.Action, ignoreCase: true, out var action))
+        {
             return BadRequest(new { message = $"Unknown assistant action '{request.Action}'." });
+        }
+
         if (action == AssistantAction.Ask && string.IsNullOrWhiteSpace(request.Question))
+        {
             return BadRequest(new { message = "A question is required for the Ask action." });
+        }
 
         var contextPaths = (request.ContextPaths ?? []).Distinct().Take(MaxContextPages).ToList();
         if (contextPaths.Count == 0)
+        {
             return BadRequest(new { message = "Select at least one page as context." });
+        }
 
         var contextBlocks = new List<string>();
         foreach (var path in contextPaths)
@@ -83,7 +82,9 @@ public class AiAssistantController : ControllerBase
             // Fail closed: a user must never be able to feed the AI a page they can't
             // themselves view, even indirectly via this endpoint.
             if (!await _permissions.HasAtLeastAsync(user.Id, path, PermissionLevel.View, ct))
+            {
                 return Forbid();
+            }
 
             try
             {

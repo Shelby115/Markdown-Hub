@@ -24,8 +24,15 @@ public class PermissionService
     public async Task<PermissionLevel?> GetEffectiveLevelAsync(int appUserId, string relativePath, CancellationToken ct = default)
     {
         var user = await _db.Users.FindAsync([appUserId], ct);
-        if (user is null || user.IsDisabled) return null;
-        if (user.IsAdministrator) return PermissionLevel.Manage;
+        if (user is null || user.IsDisabled)
+        {
+            return null;
+        }
+
+        if (user.IsAdministrator)
+        {
+            return PermissionLevel.Manage;
+        }
 
         var grants = await _db.FolderPermissions
             .Where(p => p.AppUserId == appUserId)
@@ -49,11 +56,21 @@ public class PermissionService
 
     public PermissionLevel? GetEffectiveLevel(AppUser user, IReadOnlyList<FolderPermission> grants, string relativePath)
     {
-        if (user.IsDisabled) return null;
-        if (user.IsAdministrator) return PermissionLevel.Manage;
+        if (user.IsDisabled)
+        {
+            return null;
+        }
+
+        if (user.IsAdministrator)
+        {
+            return PermissionLevel.Manage;
+        }
 
         var folderPath = CanonicalizeToFolder(relativePath);
-        if (folderPath is null) return null; // path would escape the hub root entirely - deny
+        if (folderPath is null)
+        {
+            return null; // path would escape the hub root entirely - deny
+        }
 
         // Find the most specific (longest) matching folder prefix.
         FolderPermission? best = null;
@@ -62,7 +79,9 @@ public class PermissionService
             if (IsPrefixMatch(grant.FolderPath, folderPath))
             {
                 if (best is null || grant.FolderPath.Length > best.FolderPath.Length)
+                {
                     best = grant;
+                }
             }
         }
         return best?.Level;
@@ -73,7 +92,11 @@ public class PermissionService
 
     private static bool IsPrefixMatch(string grantFolder, string targetFolder)
     {
-        if (grantFolder.Length == 0) return true; // root grant applies everywhere
+        if (grantFolder.Length == 0)
+        {
+            return true; // root grant applies everywhere
+        }
+
         return targetFolder.Equals(grantFolder, StringComparison.OrdinalIgnoreCase)
             || targetFolder.StartsWith(grantFolder + "/", StringComparison.OrdinalIgnoreCase);
     }

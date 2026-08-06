@@ -7,8 +7,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers;
 
-public record PublishRequest(bool Published);
-
 [ApiController]
 public class PublishController : ControllerBase
 {
@@ -36,11 +34,21 @@ public class PublishController : ControllerBase
     public async Task<IActionResult> SetPublished(string relativePath, [FromBody] PublishRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
-        if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Edit, ct)) return Forbid();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.Edit, ct))
+        {
+            return Forbid();
+        }
 
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.RelativePath == relativePath && !p.IsDeleted, ct);
-        if (meta is null) return NotFound();
+        if (meta is null)
+        {
+            return NotFound();
+        }
 
         meta.IsPublished = request.Published;
         // Unpublishing immediately invalidates the slug so the old URL 404s right away;
@@ -63,7 +71,10 @@ public class PublishController : ControllerBase
     public async Task<IActionResult> ViewPublished(string slug, CancellationToken ct)
     {
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.PublishSlug == slug && p.IsPublished && !p.IsDeleted, ct);
-        if (meta is null) return NotFound();
+        if (meta is null)
+        {
+            return NotFound();
+        }
 
         var page = await _files.ReadAsync(meta.RelativePath, ct);
         var html = _renderer.RenderToSafeHtml(
@@ -80,7 +91,10 @@ public class PublishController : ControllerBase
         var candidate = target.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? target : target + ".md";
         var meta = _db.Pages.FirstOrDefault(p => (p.RelativePath == candidate || p.PageName == target) && !p.IsDeleted);
         if (meta is { IsPublished: true, PublishSlug: not null })
+        {
             return ($"/published/{meta.PublishSlug}", true);
+        }
+
         return ("#", false);
     }
 
@@ -98,7 +112,10 @@ public class PublishController : ControllerBase
     public async Task<IActionResult> GetPublishedAttachment(string slug, [FromQuery] string filename, CancellationToken ct)
     {
         var publishedPage = await _db.Pages.FirstOrDefaultAsync(p => p.PublishSlug == slug && p.IsPublished && !p.IsDeleted, ct);
-        if (publishedPage is null || string.IsNullOrWhiteSpace(filename)) return NotFound();
+        if (publishedPage is null || string.IsNullOrWhiteSpace(filename))
+        {
+            return NotFound();
+        }
 
         var ext = Path.GetExtension(filename).ToLowerInvariant();
         var contentType = ext switch
@@ -122,14 +139,23 @@ public class PublishController : ControllerBase
             ".pdf" => "application/pdf",
             _ => null
         };
-        if (contentType is null) return NotFound();
+        if (contentType is null)
+        {
+            return NotFound();
+        }
 
         var currentFolder = Path.GetDirectoryName(publishedPage.RelativePath)?.Replace('\\', '/') ?? "";
         var relativePath = _hub.FindByFilename(filename, currentFolder);
-        if (relativePath is null) return NotFound();
+        if (relativePath is null)
+        {
+            return NotFound();
+        }
 
         var absolute = _hub.ResolveSafe(relativePath);
-        if (!System.IO.File.Exists(absolute)) return NotFound();
+        if (!System.IO.File.Exists(absolute))
+        {
+            return NotFound();
+        }
 
         return PhysicalFile(absolute, contentType, enableRangeProcessing: true);
     }

@@ -9,10 +9,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.Auth;
 
-public record LoginRequest(string Username, string Password);
-public record LoginResponse(string Token, DateTimeOffset ExpiresAt);
-public record ExternalLinkStartResponse(string RedirectUrl);
-
 /// <summary>
 /// Local login and the server-driven OIDC/OAuth2 authorization-code flow (Auth.md §5/§11/§12).
 /// The app is always the confidential client here - provider tokens and client secrets are
@@ -89,7 +85,10 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ExternalLogin(string providerName, [FromQuery] string? returnOrigin, CancellationToken ct)
     {
         var provider = await _db.AuthenticationProviders.FirstOrDefaultAsync(p => p.Name == providerName && p.Enabled, ct);
-        if (provider is null) return NotFound(new { message = "Unknown or disabled provider." });
+        if (provider is null)
+        {
+            return NotFound(new { message = "Unknown or disabled provider." });
+        }
 
         var redirectUri = BuildCallbackUri(providerName);
         var origin = ResolveReturnOrigin(returnOrigin);
@@ -114,10 +113,16 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ExternalLinkStart(string providerName, [FromQuery] string? returnOrigin, CancellationToken ct)
     {
         var subject = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
-        if (!int.TryParse(subject, out var userId)) return Unauthorized();
+        if (!int.TryParse(subject, out var userId))
+        {
+            return Unauthorized();
+        }
 
         var provider = await _db.AuthenticationProviders.FirstOrDefaultAsync(p => p.Name == providerName && p.Enabled, ct);
-        if (provider is null) return NotFound(new { message = "Unknown or disabled provider." });
+        if (provider is null)
+        {
+            return NotFound(new { message = "Unknown or disabled provider." });
+        }
 
         var redirectUri = BuildCallbackUri(providerName);
         var origin = ResolveReturnOrigin(returnOrigin);
@@ -133,17 +138,28 @@ public class AuthController : ControllerBase
         var origin = ResolveReturnOrigin(null); // fall back origin until state (which carries the real one) is decoded
         try
         {
-            if (!string.IsNullOrEmpty(error)) throw new InvalidOperationException($"The provider reported an error: {error}");
+            if (!string.IsNullOrEmpty(error))
+            {
+                throw new InvalidOperationException($"The provider reported an error: {error}");
+            }
+
             if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
+            {
                 throw new InvalidOperationException("Sign-in response was incomplete.");
+            }
 
             var authState = _external.UnprotectState(state);
             origin = ResolveReturnOrigin(authState.ReturnOrigin);
             if (!string.Equals(authState.ProviderName, providerName, StringComparison.Ordinal))
+            {
                 throw new InvalidOperationException("Sign-in request did not match the callback provider.");
+            }
 
             var provider = await _db.AuthenticationProviders.FirstOrDefaultAsync(p => p.Name == providerName && p.Enabled, ct);
-            if (provider is null) throw new InvalidOperationException("This provider is no longer enabled.");
+            if (provider is null)
+            {
+                throw new InvalidOperationException("This provider is no longer enabled.");
+            }
 
             var redirectUri = BuildCallbackUri(providerName);
             var identity = await _external.ExchangeCodeAsync(provider, code, redirectUri, authState, ct);
@@ -152,7 +168,10 @@ public class AuthController : ControllerBase
                 ? await LinkIdentityAsync(provider, identity, authState.LinkUserId!.Value, ct)
                 : await FindOrProvisionUserAsync(provider, identity, ct);
 
-            if (user is null) throw new InvalidOperationException("Sign-in was not completed - the account is disabled or requires administrator approval.");
+            if (user is null)
+            {
+                throw new InvalidOperationException("Sign-in was not completed - the account is disabled or requires administrator approval.");
+            }
 
             var (token, _) = await _tokens.IssueAsync(user, ct);
             await _audit.LogEventAsync(user.Id, "Auth.Login", user.Username, "Auth", user.Id, provider.Name, ct: ct);
@@ -174,10 +193,15 @@ public class AuthController : ControllerBase
         var existing = await _db.AuthenticationIdentities
             .FirstOrDefaultAsync(i => i.AuthenticationProviderId == provider.Id && i.Subject == identity.Subject, ct);
         if (existing is not null && existing.UserId != userId)
+        {
             throw new InvalidOperationException("This provider identity is already linked to a different account.");
+        }
 
         var user = await _db.Users.FindAsync([userId], ct);
-        if (user is null || user.IsDisabled) return null;
+        if (user is null || user.IsDisabled)
+        {
+            return null;
+        }
 
         if (existing is null)
         {
@@ -212,7 +236,9 @@ public class AuthController : ControllerBase
 
         var config = ExternalAuthService.ParseConfiguration(provider);
         if (config.AutoProvision == AutoProvisionPolicy.Disabled)
+        {
             throw new InvalidOperationException("This provider does not allow creating new accounts. Ask an administrator to invite you first.");
+        }
 
         var username = await GenerateUniqueUsernameAsync(identity, ct);
         var user = new AppUser
@@ -239,7 +265,10 @@ public class AuthController : ControllerBase
         await _db.SaveChangesAsync(ct);
 
         if (user.IsDisabled)
+        {
             throw new InvalidOperationException("Your account has been created but requires administrator approval before you can sign in.");
+        }
+
         return user;
     }
 
@@ -249,7 +278,10 @@ public class AuthController : ControllerBase
             : !string.IsNullOrWhiteSpace(identity.Email) ? identity.Email.Split('@')[0]
             : identity.Subject;
         var slug = new string(basis.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray()).Trim('-');
-        if (string.IsNullOrEmpty(slug)) slug = "user";
+        if (string.IsNullOrEmpty(slug))
+        {
+            slug = "user";
+        }
 
         var candidate = slug;
         var suffix = 1;
@@ -272,7 +304,10 @@ public class AuthController : ControllerBase
     {
         var allowed = _config.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         if (!string.IsNullOrEmpty(candidate) && allowed.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+        {
             return candidate;
+        }
+
         return allowed.FirstOrDefault(o => !string.IsNullOrEmpty(o)) ?? "";
     }
 

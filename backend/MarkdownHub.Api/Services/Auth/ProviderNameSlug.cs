@@ -7,7 +7,11 @@ public static class ProviderNameSlug
     public static string Create(string name, string fallback = "provider")
     {
         var slug = new string(name.Trim().ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
-        while (slug.Contains("--", StringComparison.Ordinal)) slug = slug.Replace("--", "-");
+        while (slug.Contains("--", StringComparison.Ordinal))
+        {
+            slug = slug.Replace("--", "-");
+        }
+
         slug = slug.Trim('-');
         return string.IsNullOrEmpty(slug) ? fallback : slug;
     }

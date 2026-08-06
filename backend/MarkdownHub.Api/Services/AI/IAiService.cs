@@ -1,10 +1,5 @@
 namespace MarkdownHub.Api.Services;
 
-public class AiServiceException : Exception
-{
-    public AiServiceException(string message, Exception? inner = null) : base(message, inner) { }
-}
-
 /// <summary>
 /// Provider-independent abstraction for a single-shot chat completion. The rest of the
 /// application (AiController, the knowledge assistant) should depend on this, never on an

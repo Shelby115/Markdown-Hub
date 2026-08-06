@@ -108,7 +108,11 @@ public class AuditLogService
         // - filter client-side. This table is already retention-bounded (30 days by default).
         var all = await _db.AuditLog.ToListAsync(ct);
         var stale = all.Where(a => a.Timestamp < cutoff).ToList();
-        if (stale.Count == 0) return 0;
+        if (stale.Count == 0)
+        {
+            return 0;
+        }
+
         _db.AuditLog.RemoveRange(stale);
         await _db.SaveChangesAsync(ct);
         return stale.Count;

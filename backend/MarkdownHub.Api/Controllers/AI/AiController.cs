@@ -4,9 +4,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.AI;
 
-public record AiEditRequest(string Action, string Text);
-public record AiEditResponse(string Result);
-
 /// <summary>
 /// Text-in/text-out AI editing actions (summarize, improve writing, fix grammar) operating on
 /// arbitrary submitted text - not tied to a specific hub file, so there's no folder permission
@@ -32,15 +29,25 @@ public class AiController : ControllerBase
     public async Task<IActionResult> Edit([FromBody] AiEditRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         if (!Enum.TryParse<AiEditAction>(request.Action, ignoreCase: true, out var action))
+        {
             return BadRequest(new { message = $"Unknown AI action '{request.Action}'." });
+        }
 
         if (string.IsNullOrWhiteSpace(request.Text))
+        {
             return BadRequest(new { message = "Text is required." });
+        }
+
         if (request.Text.Length > MaxInputLength)
+        {
             return BadRequest(new { message = $"Text is too long for AI editing (max {MaxInputLength} characters)." });
+        }
 
         try
         {

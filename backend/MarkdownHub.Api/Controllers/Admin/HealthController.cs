@@ -31,7 +31,10 @@ public class HealthController : ControllerBase
         try
         {
             checks["markdownDirectory"] = Directory.Exists(_hub.Root) ? "accessible" : "missing";
-            if (!Directory.Exists(_hub.Root)) healthy = false;
+            if (!Directory.Exists(_hub.Root))
+            {
+                healthy = false;
+            }
         }
         catch (Exception ex)
         {

@@ -23,13 +23,21 @@ public class FakeAiService : IAiService
     {
         LastSystemPrompt = systemPrompt;
         LastUserPrompt = userPrompt;
-        if (ThrowOnComplete is not null) throw ThrowOnComplete;
+        if (ThrowOnComplete is not null)
+        {
+            throw ThrowOnComplete;
+        }
+
         return Task.FromResult(Respond?.Invoke(systemPrompt, userPrompt) ?? "AI reply");
     }
 
     public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
     {
-        if (ThrowOnListModels is not null) throw ThrowOnListModels;
+        if (ThrowOnListModels is not null)
+        {
+            throw ThrowOnListModels;
+        }
+
         return Task.FromResult(Models);
     }
 }

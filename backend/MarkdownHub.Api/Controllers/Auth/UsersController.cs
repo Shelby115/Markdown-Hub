@@ -10,10 +10,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.Auth;
 
-public record GrantPermissionRequest(int AppUserId, string FolderPath, PermissionLevel Level);
-public record CreateUserRequest(string Username, string? TemporaryPassword, bool IsAdministrator = false);
-public record CreateUserResponse(int Id, string Username, bool IsAdministrator, string TemporaryPassword);
-public record AdminSetPasswordRequest(string NewPassword);
 
 /// <summary>
 /// Administrator-only user and permission management. Authorization here is enforced via the
@@ -69,17 +65,25 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         var username = request.Username.Trim();
-        if (string.IsNullOrEmpty(username)) return BadRequest("Username is required.");
+        if (string.IsNullOrEmpty(username))
+        {
+            return BadRequest("Username is required.");
+        }
 
         var normalized = AppUser.Normalize(username);
         var exists = await _db.Users.AnyAsync(u => u.NormalizedUsername == normalized, ct);
-        if (exists) return Conflict("A user with that username already exists.");
+        if (exists)
+        {
+            return Conflict("A user with that username already exists.");
+        }
 
         var temporaryPassword = string.IsNullOrEmpty(request.TemporaryPassword)
             ? GenerateTemporaryPassword()
             : request.TemporaryPassword;
         if (temporaryPassword.Length < AccountController.MinPasswordLength)
+        {
             return BadRequest($"Temporary password must be at least {AccountController.MinPasswordLength} characters.");
+        }
 
         var user = new AppUser
         {
@@ -100,15 +104,24 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> SetPassword(int id, [FromBody] AdminSetPasswordRequest request, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
-        if (user is null) return NotFound();
+        if (user is null)
+        {
+            return NotFound();
+        }
+
         if (request.NewPassword.Length < AccountController.MinPasswordLength || request.NewPassword.Length > AccountController.MaxPasswordLength)
+        {
             return BadRequest($"Password must be between {AccountController.MinPasswordLength} and {AccountController.MaxPasswordLength} characters.");
+        }
 
         user.PasswordHash = _hasher.HashPassword(user, request.NewPassword);
         user.UpdatedAt = DateTimeOffset.UtcNow;
 
         var sessions = await _db.Sessions.Where(s => s.UserId == id && s.RevokedAt == null).ToListAsync(ct);
-        foreach (var session in sessions) session.RevokedAt = DateTimeOffset.UtcNow;
+        foreach (var session in sessions)
+        {
+            session.RevokedAt = DateTimeOffset.UtcNow;
+        }
 
         await _db.SaveChangesAsync(ct);
         await LogAsync("Auth.PasswordReset", user.Username, "User", user.Id, "by administrator", ct);
@@ -119,13 +132,22 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DisableUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
-        if (user is null) return NotFound();
+        if (user is null)
+        {
+            return NotFound();
+        }
+
         if (user.IsAdministrator && await _safety.IsSoleAdministratorAsync(id, ct))
+        {
             return BadRequest("Cannot disable the last remaining administrator.");
+        }
 
         user.IsDisabled = true;
         var sessions = await _db.Sessions.Where(s => s.UserId == id && s.RevokedAt == null).ToListAsync(ct);
-        foreach (var session in sessions) session.RevokedAt = DateTimeOffset.UtcNow;
+        foreach (var session in sessions)
+        {
+            session.RevokedAt = DateTimeOffset.UtcNow;
+        }
 
         await _db.SaveChangesAsync(ct);
         await LogAsync("User.Disable", user.Username, "User", user.Id, null, ct);
@@ -136,7 +158,11 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> EnableUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
-        if (user is null) return NotFound();
+        if (user is null)
+        {
+            return NotFound();
+        }
+
         user.IsDisabled = false;
         await _db.SaveChangesAsync(ct);
         await LogAsync("User.Enable", user.Username, "User", user.Id, null, ct);
@@ -147,7 +173,11 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> PromoteToAdmin(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
-        if (user is null) return NotFound();
+        if (user is null)
+        {
+            return NotFound();
+        }
+
         user.IsAdministrator = true;
         await _db.SaveChangesAsync(ct);
         await LogAsync("User.Promote", user.Username, "User", user.Id, null, ct);
@@ -158,12 +188,19 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DemoteToUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
-        if (user is null) return NotFound();
+        if (user is null)
+        {
+            return NotFound();
+        }
+
         if (user.IsAdministrator)
         {
             // Refuse to leave the system with zero administrators - there'd be no way back in.
             var otherAdmins = await _db.Users.CountAsync(u => u.IsAdministrator && u.Id != id, ct);
-            if (otherAdmins == 0) return BadRequest("Cannot demote the last remaining administrator.");
+            if (otherAdmins == 0)
+            {
+                return BadRequest("Cannot demote the last remaining administrator.");
+            }
         }
         user.IsAdministrator = false;
         await _db.SaveChangesAsync(ct);
@@ -175,9 +212,15 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DeleteUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
-        if (user is null) return NotFound();
+        if (user is null)
+        {
+            return NotFound();
+        }
+
         if (user.IsAdministrator && await _safety.IsSoleAdministratorAsync(id, ct))
+        {
             return BadRequest("Cannot delete the last remaining administrator.");
+        }
 
         var deletedUserId = user.Id;
         // No DB-level cascade for a database that had these tables hand-created by
@@ -240,7 +283,11 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> RevokePermission(int id, CancellationToken ct)
     {
         var perm = await _db.FolderPermissions.FindAsync([id], ct);
-        if (perm is null) return NotFound();
+        if (perm is null)
+        {
+            return NotFound();
+        }
+
         _db.FolderPermissions.Remove(perm);
         await _db.SaveChangesAsync(ct);
         await LogAsync("Permission.Revoke", perm.FolderPath, "Permission", perm.Id, $"appUserId={perm.AppUserId}", ct);

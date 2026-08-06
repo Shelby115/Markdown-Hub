@@ -4,9 +4,6 @@ using MarkdownHub.Api.Data.Entities;
 
 namespace MarkdownHub.Api.Services;
 
-/// <summary>Outcome of evaluating a save against the version-coalescing rules.</summary>
-public record VersionRecordResult(DocumentVersion? Version, bool Changed, bool IsNewDocument);
-
 /// <summary>
 /// Owns DocumentVersion bookkeeping: the coalescing/debounce algorithm that decides whether a
 /// save produces a new version, and explicit restore. Never touches the filesystem - that stays
@@ -165,7 +162,11 @@ public class VersionService
         // already retention-bounded, so loading it in full for a periodic cleanup pass is fine.
         var all = await _db.DocumentVersions.ToListAsync(ct);
         var stale = all.Where(v => v.CreatedAtUtc < cutoff).ToList();
-        if (stale.Count == 0) return 0;
+        if (stale.Count == 0)
+        {
+            return 0;
+        }
+
         _db.DocumentVersions.RemoveRange(stale);
         await _db.SaveChangesAsync(ct);
         return stale.Count;

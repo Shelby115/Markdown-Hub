@@ -7,8 +7,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers;
 
-public record BacklinkResult(string RelativePath, string PageName);
-
 [ApiController]
 [Authorize]
 public class BacklinksController : ControllerBase
@@ -28,11 +26,21 @@ public class BacklinksController : ControllerBase
     public async Task<IActionResult> GetBacklinks(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
-        if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct)) return Forbid();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct))
+        {
+            return Forbid();
+        }
 
         var page = await _db.Pages.FirstOrDefaultAsync(p => p.RelativePath == relativePath && !p.IsDeleted, ct);
-        if (page is null) return Ok(Array.Empty<BacklinkResult>());
+        if (page is null)
+        {
+            return Ok(Array.Empty<BacklinkResult>());
+        }
 
         var incoming = await _db.PageLinks
             .Where(l => l.TargetPageId == page.Id)
@@ -43,9 +51,15 @@ public class BacklinksController : ControllerBase
         var results = new List<BacklinkResult>();
         foreach (var link in incoming)
         {
-            if (link.SourcePage is null) continue;
+            if (link.SourcePage is null)
+            {
+                continue;
+            }
+
             if (_permissions.HasAtLeast(user, grants, link.SourcePage.RelativePath, PermissionLevel.View))
+            {
                 results.Add(new BacklinkResult(link.SourcePage.RelativePath, link.SourcePage.PageName));
+            }
         }
         return Ok(results.DistinctBy(r => r.RelativePath));
     }

@@ -2,8 +2,6 @@ using Microsoft.Data.Sqlite;
 
 namespace MarkdownHub.Api.Services;
 
-public record SearchHit(string RelativePath, string PageName, string Snippet);
-
 /// <summary>
 /// Full-text search over page names, folder names, and Markdown content using a
 /// SQLite FTS5 virtual table. This is intentionally a separate physical table from
@@ -76,7 +74,10 @@ public class SearchIndexService
     /// </summary>
     public async Task<IReadOnlyList<SearchHit>> SearchAsync(string query, int limit = 50, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(query)) return [];
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
 
         await using var conn = new SqliteConnection(_connectionString);
         await conn.OpenAsync(ct);

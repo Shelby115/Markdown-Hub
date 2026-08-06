@@ -15,24 +15,6 @@ using MarkdownHub.Api.Data.Entities.Auth;
 
 namespace MarkdownHub.Api.Services;
 
-public enum AuthIntent { Login, Link }
-
-/// <summary>Encrypted round-trip payload carried in the OAuth/OIDC "state" parameter - validates
-/// the callback belongs to a request this server actually issued (Auth.md §20) and carries the
-/// PKCE verifier and linking intent across the redirect, without needing server-side storage.</summary>
-public record ExternalAuthState(
-    string ProviderName,
-    AuthIntent Intent,
-    int? LinkUserId,
-    string CodeVerifier,
-    string OidcNonce,
-    string ReturnOrigin,
-    DateTimeOffset IssuedAt);
-
-/// <summary>Normalized identity claims extracted from a provider, regardless of whether they
-/// came from an OIDC id_token or a plain OAuth2 userinfo response.</summary>
-public record ExternalIdentity(string Subject, string? Email, string? Name);
-
 /// <summary>
 /// Drives the server-side authorization-code exchange for both OIDC and generic OAuth 2.0
 /// providers (Auth.md §11/§12) - the app itself is the confidential client; provider tokens and
@@ -96,7 +78,10 @@ public class ExternalAuthService
             ["code_challenge"] = codeChallenge,
             ["code_challenge_method"] = "S256",
         };
-        if (provider.Type == AuthProviderType.Oidc) query["nonce"] = oidcNonce;
+        if (provider.Type == AuthProviderType.Oidc)
+        {
+            query["nonce"] = oidcNonce;
+        }
 
         return QueryHelpers.AddQueryString(authorizationEndpoint, query);
     }
@@ -118,7 +103,10 @@ public class ExternalAuthService
         var state = JsonSerializer.Deserialize<ExternalAuthState>(json)
             ?? throw new InvalidOperationException("Sign-in request could not be verified.");
         if (DateTimeOffset.UtcNow - state.IssuedAt > StateLifetime)
+        {
             throw new InvalidOperationException("Sign-in attempt expired - please try again.");
+        }
+
         return state;
     }
 
@@ -150,23 +138,32 @@ public class ExternalAuthService
             ["client_id"] = provider.ClientId,
             ["code_verifier"] = state.CodeVerifier,
         };
-        if (!string.IsNullOrEmpty(secret)) form["client_secret"] = secret;
+        if (!string.IsNullOrEmpty(secret))
+        {
+            form["client_secret"] = secret;
+        }
 
         using var tokenRequest = new HttpRequestMessage(HttpMethod.Post, tokenEndpoint) { Content = new FormUrlEncodedContent(form) };
         tokenRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         using var tokenResponse = await client.SendAsync(tokenRequest, ct);
         if (!tokenResponse.IsSuccessStatusCode)
+        {
             throw new InvalidOperationException($"Provider '{provider.DisplayName}' rejected the authorization code.");
+        }
 
         var payload = await tokenResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var accessToken = payload.TryGetProperty("access_token", out var at) ? at.GetString() : null;
         var idToken = payload.TryGetProperty("id_token", out var it) ? it.GetString() : null;
 
         if (provider.Type == AuthProviderType.Oidc && !string.IsNullOrEmpty(idToken))
+        {
             return ValidateIdToken(provider, config, discovery!, idToken, state.OidcNonce);
+        }
 
         if (string.IsNullOrEmpty(accessToken))
+        {
             throw new InvalidOperationException($"Provider '{provider.DisplayName}' did not return a usable token.");
+        }
 
         return await FetchUserInfoAsync(client, config, accessToken, ct);
     }
@@ -211,7 +208,9 @@ public class ExternalAuthService
 
         var nonce = principal.FindFirstValue("nonce");
         if (!string.Equals(nonce, expectedNonce, StringComparison.Ordinal))
+        {
             throw new InvalidOperationException("Identity token nonce mismatch.");
+        }
 
         var subject = principal.FindFirstValue("sub")
             ?? throw new InvalidOperationException("Identity token has no subject.");
@@ -223,14 +222,18 @@ public class ExternalAuthService
     private static async Task<ExternalIdentity> FetchUserInfoAsync(HttpClient client, ProviderConfiguration config, string accessToken, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(config.UserInfoEndpoint))
+        {
             throw new InvalidOperationException("Provider has no userinfo endpoint configured.");
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, config.UserInfoEndpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         using var response = await client.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
+        {
             throw new InvalidOperationException("Couldn't retrieve profile information from the provider.");
+        }
 
         var json = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var subject = GetField(json, config.UserIdField)
@@ -242,8 +245,16 @@ public class ExternalAuthService
 
     private static string? GetField(JsonElement root, string? fieldName)
     {
-        if (string.IsNullOrEmpty(fieldName) || root.ValueKind != JsonValueKind.Object) return null;
-        if (!root.TryGetProperty(fieldName, out var value)) return null;
+        if (string.IsNullOrEmpty(fieldName) || root.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!root.TryGetProperty(fieldName, out var value))
+        {
+            return null;
+        }
+
         return value.ValueKind switch
         {
             JsonValueKind.String => value.GetString(),
@@ -255,7 +266,9 @@ public class ExternalAuthService
     private async Task<OpenIdConnectConfiguration> GetOidcConfigurationAsync(AuthenticationProvider provider, ProviderConfiguration config, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(config.Authority))
+        {
             throw new InvalidOperationException($"Provider '{provider.DisplayName}' has no authority configured.");
+        }
 
         var cacheKey = $"{provider.Name}|{config.Authority}";
         var manager = DiscoveryCache.GetOrAdd(cacheKey, _ =>

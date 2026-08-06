@@ -7,19 +7,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers;
 
-public record VersionSummaryDto(int Id, int DocumentId, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc,
-    bool IsOpen, string VersionType, int? UserId, string? Username, string RelativePath);
-
-public record VersionDetailDto(int Id, int DocumentId, DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc,
-    bool IsOpen, string VersionType, int? UserId, string? Username, string RelativePath, string Content);
-
-public record DocumentHistoryDto(int DocumentId, string RelativePath, bool IsDeleted, IReadOnlyList<VersionSummaryDto> Versions);
-
-public record CompareResultDto(VersionDetailDto From, VersionDetailDto To);
-
-public record DeletedDocumentDto(int DocumentId, string RelativePath, string PageName,
-    DateTimeOffset? DeletedAtUtc, int? DeletedByUserId, string? DeletedByUsername, int? LatestVersionId);
-
 /// <summary>
 /// Version History API - see Activity-And-History.md. Every endpoint enforces the same
 /// folder-permission model as normal document access (View to read/compare, Edit to restore a
@@ -53,11 +40,21 @@ public class VersionsController : ControllerBase
     public async Task<IActionResult> GetHistoryByPath(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
-        if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct)) return Forbid();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!await _permissions.HasAtLeastAsync(user.Id, relativePath, PermissionLevel.View, ct))
+        {
+            return Forbid();
+        }
 
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.RelativePath == relativePath && !p.IsDeleted, ct);
-        if (meta is null) return NotFound();
+        if (meta is null)
+        {
+            return NotFound();
+        }
 
         return Ok(await BuildHistoryDtoAsync(meta, ct));
     }
@@ -66,14 +63,27 @@ public class VersionsController : ControllerBase
     public async Task<IActionResult> GetVersion(int versionId, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var version = await _versions.GetVersionAsync(versionId, ct);
-        if (version is null) return NotFound();
+        if (version is null)
+        {
+            return NotFound();
+        }
 
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.Id == version.DocumentId, ct);
-        if (meta is null) return NotFound();
-        if (!await _permissions.HasAtLeastAsync(user.Id, meta.RelativePath, PermissionLevel.View, ct)) return Forbid();
+        if (meta is null)
+        {
+            return NotFound();
+        }
+
+        if (!await _permissions.HasAtLeastAsync(user.Id, meta.RelativePath, PermissionLevel.View, ct))
+        {
+            return Forbid();
+        }
 
         return Ok(await ToDetailDtoAsync(version, ct));
     }
@@ -82,16 +92,33 @@ public class VersionsController : ControllerBase
     public async Task<IActionResult> Compare([FromQuery] int fromId, [FromQuery] int toId, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var from = await _versions.GetVersionAsync(fromId, ct);
         var to = await _versions.GetVersionAsync(toId, ct);
-        if (from is null || to is null) return NotFound();
-        if (from.DocumentId != to.DocumentId) return BadRequest(new { message = "Both versions must belong to the same document." });
+        if (from is null || to is null)
+        {
+            return NotFound();
+        }
+
+        if (from.DocumentId != to.DocumentId)
+        {
+            return BadRequest(new { message = "Both versions must belong to the same document." });
+        }
 
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.Id == from.DocumentId, ct);
-        if (meta is null) return NotFound();
-        if (!await _permissions.HasAtLeastAsync(user.Id, meta.RelativePath, PermissionLevel.View, ct)) return Forbid();
+        if (meta is null)
+        {
+            return NotFound();
+        }
+
+        if (!await _permissions.HasAtLeastAsync(user.Id, meta.RelativePath, PermissionLevel.View, ct))
+        {
+            return Forbid();
+        }
 
         return Ok(new CompareResultDto(await ToDetailDtoAsync(from, ct), await ToDetailDtoAsync(to, ct)));
     }
@@ -107,16 +134,28 @@ public class VersionsController : ControllerBase
     public async Task<IActionResult> Restore(int versionId, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var version = await _versions.GetVersionAsync(versionId, ct);
-        if (version is null) return NotFound();
+        if (version is null)
+        {
+            return NotFound();
+        }
 
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.Id == version.DocumentId, ct);
-        if (meta is null) return NotFound();
+        if (meta is null)
+        {
+            return NotFound();
+        }
 
         var requiredLevel = meta.IsDeleted ? PermissionLevel.Manage : PermissionLevel.Edit;
-        if (!await _permissions.HasAtLeastAsync(user.Id, meta.RelativePath, requiredLevel, ct)) return Forbid();
+        if (!await _permissions.HasAtLeastAsync(user.Id, meta.RelativePath, requiredLevel, ct))
+        {
+            return Forbid();
+        }
 
         try
         {
@@ -140,7 +179,10 @@ public class VersionsController : ControllerBase
     public async Task<IActionResult> ListDeleted(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var grants = await _permissions.GetGrantsAsync(user.Id, ct);
         var deleted = await _db.Pages.Where(p => p.IsDeleted).ToListAsync(ct);

@@ -2,16 +2,6 @@ using System.Text.RegularExpressions;
 
 namespace MarkdownHub.Api.Services;
 
-public enum WikiLinkKind { Link, Embed }
-
-public record ParsedWikiLink(
-    WikiLinkKind Kind,
-    string Target,      // e.g. "Folder/PageName"
-    string? Anchor,      // e.g. "Section Heading"
-    string? DisplayText, // explicit |LinkText override, if any
-    string RawMatch
-);
-
 /// <summary>
 /// Parses wiki-style [[PageName]], [[PageName|Text]], [[Folder/Page#Anchor]]
 /// and ![[Embed]] / ![[Embed#Anchor]] syntax out of raw Markdown text.
@@ -48,12 +38,23 @@ public static partial class WikiLinkParser
         while (queue.Count > 0)
         {
             var current = queue.Dequeue();
-            if (!visited.Add(current)) continue;
-            if (string.Equals(current, sourcePage, StringComparison.OrdinalIgnoreCase)) return true;
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+
+            if (string.Equals(current, sourcePage, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
 
             if (embedGraph.TryGetValue(current, out var children))
+            {
                 foreach (var child in children)
+                {
                     queue.Enqueue(child);
+                }
+            }
         }
         return false;
     }

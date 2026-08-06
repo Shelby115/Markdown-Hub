@@ -4,28 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MarkdownHub.Api.Services;
 
-public record PageDto(string RelativePath, string PageName, string Content, DateTimeOffset LastModifiedUtc, long SizeBytes);
-
-public record WriteResult(PageDto Page, VersionRecordResult VersionResult);
-
-public class ConcurrentEditConflictException : Exception
-{
-    public string ConflictRelativePath { get; }
-    public ConcurrentEditConflictException(string conflictRelativePath)
-        : base("The file changed on disk since it was opened; your edit was saved as a conflict copy.")
-    {
-        ConflictRelativePath = conflictRelativePath;
-    }
-}
-
-/// <summary>Thrown when restoring a soft-deleted document would collide with a different, active
-/// document that now occupies the same path.</summary>
-public class RestorePathConflictException : Exception
-{
-    public RestorePathConflictException(string relativePath)
-        : base($"\"{relativePath}\" is now in use by a different page - it can't be restored to that path.") { }
-}
-
 /// <summary>
 /// Reads and writes Markdown files on the hub filesystem, keeping the SQLite
 /// index (PageMetadata + search + backlinks) in sync on every write.
@@ -54,7 +32,10 @@ public class MarkdownFileService
     public async Task<PageDto> ReadAsync(string relativePath, CancellationToken ct = default)
     {
         var path = _hub.ResolveSafe(relativePath);
-        if (!File.Exists(path)) throw new FileNotFoundException("Page not found.", relativePath);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("Page not found.", relativePath);
+        }
 
         var content = await File.ReadAllTextAsync(path, ct);
         var info = new FileInfo(path);
@@ -106,7 +87,10 @@ public class MarkdownFileService
     public async Task DeleteAsync(string relativePath, int actingUserId, CancellationToken ct = default)
     {
         var path = _hub.ResolveSafe(relativePath);
-        if (File.Exists(path)) File.Delete(path);
+        if (File.Exists(path))
+        {
+            File.Delete(path);
+        }
 
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.RelativePath == relativePath && !p.IsDeleted, ct);
         if (meta is not null)
@@ -182,14 +166,20 @@ public class MarkdownFileService
                 ? toFolderPath
                 : toFolderPath + "/" + permission.FolderPath[prefix.Length..];
         }
-        if (affectedPermissions.Count > 0) await _db.SaveChangesAsync(ct);
+        if (affectedPermissions.Count > 0)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
 
         foreach (var (page, oldRelativePath, newRelativePath) in renames)
         {
             await _search.RemoveAsync(oldRelativePath, ct);
             // Soft-deleted documents have no file on disk (and aren't search-indexed) - only
             // re-index the ones that are still live.
-            if (!page.IsDeleted) await IndexPageAsync(newRelativePath, null, ct);
+            if (!page.IsDeleted)
+            {
+                await IndexPageAsync(newRelativePath, null, ct);
+            }
         }
 
         return renames.Count;
@@ -218,11 +208,20 @@ public class MarkdownFileService
             page.DeletedAtUtc = DateTimeOffset.UtcNow;
             page.DeletedByAppUserId = actingUserId;
         }
-        if (affectedPages.Count > 0) await _db.SaveChangesAsync(ct);
+        if (affectedPages.Count > 0)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
 
-        if (Directory.Exists(absolute)) Directory.Delete(absolute, recursive: true);
+        if (Directory.Exists(absolute))
+        {
+            Directory.Delete(absolute, recursive: true);
+        }
 
-        foreach (var page in affectedPages) await _search.RemoveAsync(page.RelativePath, ct);
+        foreach (var page in affectedPages)
+        {
+            await _search.RemoveAsync(page.RelativePath, ct);
+        }
 
         return affectedPages.Count;
     }
@@ -241,7 +240,10 @@ public class MarkdownFileService
         if (meta.IsDeleted)
         {
             var collision = await _db.Pages.AnyAsync(p => p.RelativePath == meta.RelativePath && !p.IsDeleted && p.Id != meta.Id, ct);
-            if (collision) throw new RestorePathConflictException(meta.RelativePath);
+            if (collision)
+            {
+                throw new RestorePathConflictException(meta.RelativePath);
+            }
         }
 
         var path = _hub.ResolveSafe(meta.RelativePath);

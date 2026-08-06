@@ -28,10 +28,17 @@ public class CurrentUserService
         var principal = _httpContextAccessor.HttpContext?.User;
         var subject = principal?.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? principal?.FindFirstValue("sub");
-        if (!int.TryParse(subject, out var userId)) return null;
+        if (!int.TryParse(subject, out var userId))
+        {
+            return null;
+        }
 
         var user = await _db.Users.FindAsync([userId], ct);
-        if (user is null || user.IsDisabled) return null;
+        if (user is null || user.IsDisabled)
+        {
+            return null;
+        }
+
         return user;
     }
 }

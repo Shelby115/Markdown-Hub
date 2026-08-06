@@ -54,12 +54,18 @@ public class MaintenanceController : ControllerBase
     public async Task<IActionResult> ResolveConflict(int id, [FromQuery] bool deleteConflictFile, CancellationToken ct)
     {
         var conflict = await _db.ConflictFiles.FindAsync([id], ct);
-        if (conflict is null) return NotFound();
+        if (conflict is null)
+        {
+            return NotFound();
+        }
 
         if (deleteConflictFile)
         {
             var path = _hub.ResolveSafe(conflict.ConflictRelativePath);
-            if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+            if (System.IO.File.Exists(path))
+            {
+                System.IO.File.Delete(path);
+            }
         }
         conflict.Resolved = true;
         await _db.SaveChangesAsync(ct);

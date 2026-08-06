@@ -6,8 +6,6 @@ using MarkdownHub.Api.Data.Entities.Auth;
 
 namespace MarkdownHub.Api.Controllers.Auth;
 
-public record AuthProviderResponse(int Id, string Name, string DisplayName, AuthProviderType Type);
-
 /// <summary>
 /// Public (pre-login) list of enabled external providers, so the SPA can show "sign in with..."
 /// buttons alongside the always-available local login form. Never required to be non-empty -

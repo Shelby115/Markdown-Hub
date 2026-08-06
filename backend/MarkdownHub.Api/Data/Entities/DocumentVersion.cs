@@ -1,12 +1,5 @@
 namespace MarkdownHub.Api.Data.Entities;
 
-/// <summary>Why a version exists - purely informational, doesn't affect storage/restoration.</summary>
-public static class DocumentVersionType
-{
-    public const string Edit = "Edit";
-    public const string Restore = "Restore";
-}
-
 /// <summary>
 /// A complete snapshot of a document's Markdown content at some point in time. Versions belong
 /// to the stable <see cref="PageMetadata.Id"/> ("DocumentId"), never to a path, so renames/moves

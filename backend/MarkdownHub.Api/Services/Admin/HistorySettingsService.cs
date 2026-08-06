@@ -50,7 +50,9 @@ public class HistorySettingsService
     public static void Validate(int days)
     {
         if (days < 0 || days > MaxDays)
+        {
             throw new ArgumentOutOfRangeException(nameof(days), $"Must be between 0 and {MaxDays} days.");
+        }
     }
 
     public async Task SetAsync(string key, int days, CancellationToken ct = default)
@@ -72,9 +74,10 @@ public class HistorySettingsService
     {
         var setting = await _db.Settings.FirstOrDefaultAsync(s => s.Key == key, ct);
         if (setting?.Value is not null && int.TryParse(setting.Value, out var stored) && stored >= 0)
+        {
             return stored;
+        }
+
         return _config.GetValue<int?>(configPath) ?? hardDefault;
     }
 }
-
-public record HistorySettings(int VersionRetentionDays, int ActivityRetentionDays, int ActivityDefaultDays);

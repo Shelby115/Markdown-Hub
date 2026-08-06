@@ -28,11 +28,15 @@ public class HubPathService
     public string ResolveSafe(string relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
+        {
             return _root;
+        }
 
         // Reject obviously hostile input before touching the filesystem APIs.
         if (relativePath.Contains('\0'))
+        {
             throw new UnauthorizedAccessException("Invalid path.");
+        }
 
         // Normalize separators, strip any leading separators / drive-letter attempts.
         var normalized = relativePath.Replace('\\', '/').TrimStart('/');
@@ -95,8 +99,15 @@ public class HubPathService
     /// </summary>
     public static string? PickClosestMatch(IReadOnlyList<string> candidates, string? relativeToFolder)
     {
-        if (candidates.Count == 0) return null;
-        if (candidates.Count == 1) return candidates[0];
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        if (candidates.Count == 1)
+        {
+            return candidates[0];
+        }
 
         var fromSegments = SplitFolder(relativeToFolder);
         return candidates

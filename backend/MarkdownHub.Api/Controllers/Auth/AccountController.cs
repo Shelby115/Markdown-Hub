@@ -9,12 +9,6 @@ using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Controllers.Auth;
 
-public record SetDefaultFolderRequest(string? FolderPath);
-public record ChangePasswordRequest(string? CurrentPassword, string NewPassword, string ConfirmNewPassword);
-public record AuthMethodsResponse(bool HasPassword, IReadOnlyList<LinkedIdentityResponse> LinkedIdentities);
-public record LinkedIdentityResponse(int Id, int ProviderId, string ProviderName, string ProviderDisplayName, DateTimeOffset CreatedAt, DateTimeOffset? LastUsedAt);
-public record SessionResponse(Guid Id, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, DateTimeOffset LastActivityAt, string? UserAgent, string? IpAddress, bool IsCurrent);
-
 [ApiController]
 [Authorize]
 public class AccountController : ControllerBase
@@ -47,7 +41,11 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> Get(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
         return Ok(new { user.Id, user.Username, user.Email, user.DisplayName, user.IsAdministrator, user.DefaultFolderPath });
     }
 
@@ -55,12 +53,18 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         if (CurrentSessionId is { } sid)
         {
             var session = await _db.Sessions.FindAsync([sid], ct);
-            if (session is not null) session.RevokedAt = DateTimeOffset.UtcNow;
+            if (session is not null)
+            {
+                session.RevokedAt = DateTimeOffset.UtcNow;
+            }
         }
         await _audit.LogEventAsync(user.Id, "Auth.Logout", user.Username, "Auth", user.Id, ct: ct);
         await _db.SaveChangesAsync(ct);
@@ -73,7 +77,10 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> SetDefaultFolder([FromBody] SetDefaultFolderRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var trimmed = request.FolderPath?.Trim().Trim('/');
         user.DefaultFolderPath = string.IsNullOrEmpty(trimmed) ? null : trimmed;
@@ -88,7 +95,10 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         if (user.PasswordHash is not null)
         {
@@ -100,9 +110,14 @@ public class AccountController : ControllerBase
         }
 
         if (request.NewPassword != request.ConfirmNewPassword)
+        {
             return BadRequest(new { message = "New password and confirmation do not match." });
+        }
+
         if (request.NewPassword.Length < MinPasswordLength || request.NewPassword.Length > MaxPasswordLength)
+        {
             return BadRequest(new { message = $"Password must be between {MinPasswordLength} and {MaxPasswordLength} characters." });
+        }
 
         user.PasswordHash = _hasher.HashPassword(user, request.NewPassword);
         user.UpdatedAt = DateTimeOffset.UtcNow;
@@ -110,7 +125,10 @@ public class AccountController : ControllerBase
         var otherSessions = await _db.Sessions
             .Where(s => s.UserId == user.Id && s.RevokedAt == null && s.Id != CurrentSessionId)
             .ToListAsync(ct);
-        foreach (var session in otherSessions) session.RevokedAt = DateTimeOffset.UtcNow;
+        foreach (var session in otherSessions)
+        {
+            session.RevokedAt = DateTimeOffset.UtcNow;
+        }
 
         await _audit.LogEventAsync(user.Id, "Auth.PasswordChanged", user.Username, "Auth", user.Id, ct: ct);
         await _db.SaveChangesAsync(ct);
@@ -121,7 +139,10 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> GetAuthenticationMethods(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var identities = await _db.AuthenticationIdentities
             .Include(i => i.Provider)
@@ -139,14 +160,22 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> RemoveAuthenticationMethod(int id, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var identity = await _db.AuthenticationIdentities.Include(i => i.Provider)
             .FirstOrDefaultAsync(i => i.Id == id && i.UserId == user.Id, ct);
-        if (identity is null) return NotFound();
+        if (identity is null)
+        {
+            return NotFound();
+        }
 
         if (await _safety.WouldRemovalLeaveNoUsableMethodAsync(user.Id, ct))
+        {
             return BadRequest(new { message = "This is your only remaining sign-in method - link another one before removing it." });
+        }
 
         _db.AuthenticationIdentities.Remove(identity);
         await _audit.LogEventAsync(user.Id, "Auth.IdentityRemoved", user.Username, "Auth", user.Id, identity.Provider?.Name, ct: ct);
@@ -158,7 +187,10 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> GetSessions(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         // SQLite can't translate ORDER BY over a DateTimeOffset column - fetch then sort
         // client-side (same limitation/workaround already used elsewhere in this codebase, e.g.
@@ -176,10 +208,16 @@ public class AccountController : ControllerBase
     public async Task<IActionResult> RevokeSession(Guid id, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var session = await _db.Sessions.FirstOrDefaultAsync(s => s.Id == id && s.UserId == user.Id, ct);
-        if (session is null) return NotFound();
+        if (session is null)
+        {
+            return NotFound();
+        }
 
         session.RevokedAt = DateTimeOffset.UtcNow;
         await _audit.LogEventAsync(user.Id, "Auth.SessionRevoked", user.Username, "Auth", user.Id, ct: ct);

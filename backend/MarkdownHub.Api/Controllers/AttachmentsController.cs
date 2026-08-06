@@ -41,8 +41,15 @@ public class AttachmentsController : ControllerBase
     public async Task<IActionResult> Upload([FromQuery] string folder, IFormFile file, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
-        if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.Edit, ct)) return Forbid();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.Edit, ct))
+        {
+            return Forbid();
+        }
 
         var allowedExtensions = _config.GetSection("Hub:AllowedFileExtensions").Get<string[]>()
             ?? [".png", ".jpg", ".jpeg", ".gif", ".webp"];
@@ -50,9 +57,14 @@ public class AttachmentsController : ControllerBase
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(ext))
+        {
             return BadRequest(new { message = $"File extension '{ext}' is not allowed." });
+        }
+
         if (file.Length == 0 || file.Length > maxSize)
+        {
             return BadRequest(new { message = "File is empty or exceeds the maximum upload size." });
+        }
 
         using var ms = new MemoryStream();
         await file.CopyToAsync(ms, ct);
@@ -86,16 +98,29 @@ public class AttachmentsController : ControllerBase
     public async Task<IActionResult> Resolve([FromQuery] string filename, [FromQuery] string? from, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
-        if (string.IsNullOrWhiteSpace(filename)) return NotFound();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            return NotFound();
+        }
 
         var relativePath = _hub.FindByFilename(filename, from);
-        if (relativePath is null) return NotFound();
+        if (relativePath is null)
+        {
+            return NotFound();
+        }
 
         var folder = Path.GetDirectoryName(relativePath)?.Replace('\\', '/') ?? "";
         // Deliberately 404 (not 403) on a permission miss so this can't be used to probe for
         // the existence of files in folders the caller can't see.
-        if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.View, ct)) return NotFound();
+        if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.View, ct))
+        {
+            return NotFound();
+        }
 
         return Ok(new { relativePath });
     }
@@ -104,15 +129,25 @@ public class AttachmentsController : ControllerBase
     public async Task<IActionResult> GetAttachment(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         var folder = Path.GetDirectoryName(relativePath)?.Replace('\\', '/') ?? "";
-        if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.View, ct)) return Forbid();
+        if (!await _permissions.HasAtLeastAsync(user.Id, folder, PermissionLevel.View, ct))
+        {
+            return Forbid();
+        }
 
         try
         {
             var path = _hub.ResolveSafe(relativePath);
-            if (!System.IO.File.Exists(path)) return NotFound();
+            if (!System.IO.File.Exists(path))
+            {
+                return NotFound();
+            }
+
             var contentType = Path.GetExtension(path).ToLowerInvariant() switch
             {
                 ".png" => "image/png",

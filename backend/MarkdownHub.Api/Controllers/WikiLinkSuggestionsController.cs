@@ -27,7 +27,10 @@ public class WikiLinkSuggestionsController : ControllerBase
     public async Task<IActionResult> Suggest([FromQuery] string prefix, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
-        if (user is null) return Unauthorized();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
 
         prefix ??= "";
         var candidates = await _db.Pages
@@ -41,8 +44,14 @@ public class WikiLinkSuggestionsController : ControllerBase
         foreach (var page in candidates)
         {
             if (_permissions.HasAtLeast(user, grants, page.RelativePath, PermissionLevel.View))
+            {
                 results.Add(new { page.RelativePath, page.PageName });
-            if (results.Count >= 20) break;
+            }
+
+            if (results.Count >= 20)
+            {
+                break;
+            }
         }
         return Ok(results);
     }

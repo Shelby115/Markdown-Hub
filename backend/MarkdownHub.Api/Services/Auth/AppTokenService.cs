@@ -75,10 +75,16 @@ public class AppTokenService
     public async Task<byte[]> GetSigningKeyAsync(CancellationToken ct = default)
     {
         var overrideValue = _config["Jwt:SigningKey"];
-        if (!string.IsNullOrWhiteSpace(overrideValue)) return DecodeOrDeriveKey(overrideValue);
+        if (!string.IsNullOrWhiteSpace(overrideValue))
+        {
+            return DecodeOrDeriveKey(overrideValue);
+        }
 
         var setting = await _db.Settings.FirstOrDefaultAsync(s => s.Key == SigningKeySettingKey, ct);
-        if (setting?.Value is { Length: > 0 } existing) return Convert.FromBase64String(existing);
+        if (setting?.Value is { Length: > 0 } existing)
+        {
+            return Convert.FromBase64String(existing);
+        }
 
         var generated = RandomNumberGenerator.GetBytes(32);
         _db.Settings.Add(new AppSetting { Key = SigningKeySettingKey, Value = Convert.ToBase64String(generated) });

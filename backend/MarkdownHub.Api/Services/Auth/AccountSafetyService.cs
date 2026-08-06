@@ -28,7 +28,11 @@ public class AccountSafetyService
     public async Task<bool> IsSoleAdministratorAsync(int userId, CancellationToken ct = default)
     {
         var user = await _db.Users.FindAsync([userId], ct);
-        if (user is not { IsAdministrator: true, IsDisabled: false }) return false;
+        if (user is not { IsAdministrator: true, IsDisabled: false })
+        {
+            return false;
+        }
+
         var otherAdmins = await _db.Users.CountAsync(u => u.IsAdministrator && !u.IsDisabled && u.Id != userId, ct);
         return otherAdmins == 0;
     }
@@ -58,16 +62,25 @@ public class AccountSafetyService
     public async Task<bool> WouldProviderRemovalStrandLastAdministratorAsync(int providerId, CancellationToken ct = default)
     {
         var admins = await _db.Users.Where(u => u.IsAdministrator && !u.IsDisabled).ToListAsync(ct);
-        if (admins.Count != 1) return false;
+        if (admins.Count != 1)
+        {
+            return false;
+        }
 
         var admin = admins[0];
-        if (admin.PasswordHash is not null) return false;
+        if (admin.PasswordHash is not null)
+        {
+            return false;
+        }
 
         var adminProviderIds = await _db.AuthenticationIdentities
             .Where(i => i.UserId == admin.Id)
             .Select(i => i.AuthenticationProviderId)
             .ToListAsync(ct);
-        if (!adminProviderIds.Contains(providerId)) return false;
+        if (!adminProviderIds.Contains(providerId))
+        {
+            return false;
+        }
 
         return adminProviderIds.All(id => id == providerId);
     }

@@ -1,12 +1,5 @@
 namespace MarkdownHub.Api.Services;
 
-public enum AiEditAction
-{
-    Summarize,
-    ImproveWriting,
-    FixGrammar,
-}
-
 /// <summary>Centralized system prompts for each AI editing action, so adding a new action or
 /// tweaking wording never requires touching the controller or the AI service itself.</summary>
 public static class AiPrompts
