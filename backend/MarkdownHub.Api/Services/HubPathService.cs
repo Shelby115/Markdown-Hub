@@ -83,16 +83,15 @@ public class HubPathService
 
     /// <summary>
     /// Picks the best of several same-named candidates. Kept as a pure function, separate
-    /// from the directory walk in <see cref="FindByFilename"/>, so the actual decision logic
-    /// can be unit tested directly against a hand-built candidate list instead of a real
-    /// directory tree. Zero candidates: null. Exactly one: that one, unambiguously. More than
-    /// one: whichever shares the longest folder path with <paramref name="relativeToFolder"/>
-    /// (e.g. "Angryria/Campaigns/Campaign 1/Sessions", never a file path) - the number of
-    /// directory levels you'd have to walk up from it and back down to reach the candidate
-    /// ("tree distance") - so a same-folder or nearby file wins over a same-named file
-    /// elsewhere in the hub. Ties break on shorter overall path, then alphabetically, so the
-    /// result is always deterministic - never dependent on filesystem enumeration order, which
-    /// is what made this flaky before.
+    /// from the directory walk in <see cref="FindByFilename"/>, so the decision logic can be
+    /// unit tested against a hand-built candidate list instead of a real directory tree. Among
+    /// multiple candidates, picks whichever shares the longest folder path with
+    /// <paramref name="relativeToFolder"/> (e.g. "Angryria/Campaigns/Campaign 1/Sessions", never
+    /// a file path) - the number of directory levels you'd have to walk up from it and back down
+    /// to reach the candidate ("tree distance") - so a same-folder or nearby file wins over a
+    /// same-named file elsewhere in the hub. Ties break on shorter overall path, then
+    /// alphabetically, so the result is always deterministic - never dependent on filesystem
+    /// enumeration order, which is what made this flaky before.
     /// </summary>
     public static string? PickClosestMatch(IReadOnlyList<string> candidates, string? relativeToFolder)
     {
