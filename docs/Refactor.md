@@ -31,7 +31,7 @@ Examples:
 
 Do not rename something merely for stylistic preference. The new name should be objectively clearer or more consistent.
 
-## 3. Make Endpoint Routes Explicit
+## 3. Make Endpoint Routes Explicit ✅ (`8cf3061`)
 
 Update all controller actions so that each endpoint explicitly defines its complete relative URL.
 
