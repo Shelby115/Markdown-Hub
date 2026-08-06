@@ -17,7 +17,6 @@ public record SetAiModelRequest(string? Model);
 /// OllamaAiService on every request, so a change here takes effect immediately - no restart.
 /// </summary>
 [ApiController]
-[Route("api/admin/ai")]
 [Authorize(Policy = "RequireAdministrator")]
 public class AiSettingsController : ControllerBase
 {
@@ -36,7 +35,7 @@ public class AiSettingsController : ControllerBase
         _audit = audit;
     }
 
-    [HttpGet("models")]
+    [HttpGet("api/admin/ai/models")]
     public async Task<IActionResult> ListModels(CancellationToken ct)
     {
         try
@@ -50,7 +49,7 @@ public class AiSettingsController : ControllerBase
         }
     }
 
-    [HttpGet("settings")]
+    [HttpGet("api/admin/ai/settings")]
     public async Task<IActionResult> GetSettings(CancellationToken ct)
     {
         var setting = await _db.Settings.FirstOrDefaultAsync(s => s.Key == AppSetting.AiOllamaModelKey, ct);
@@ -61,7 +60,7 @@ public class AiSettingsController : ControllerBase
 
     /// <summary>Sets the model override, or clears it (reverting to the configured default) when
     /// Model is null/blank.</summary>
-    [HttpPut("settings")]
+    [HttpPut("api/admin/ai/settings")]
     public async Task<IActionResult> SetModel([FromBody] SetAiModelRequest request, CancellationToken ct)
     {
         var trimmed = request.Model?.Trim();

@@ -9,7 +9,6 @@ public record SetHistorySettingsRequest(int VersionRetentionDays, int ActivityRe
 /// <summary>Admin-only retention configuration for Version History and the Activity Log
 /// (Activity-And-History.md section 6). Backed by AppSetting, same as the AI model override.</summary>
 [ApiController]
-[Route("api/admin/history-settings")]
 [Authorize(Policy = "RequireAdministrator")]
 public class HistorySettingsController : ControllerBase
 {
@@ -24,10 +23,10 @@ public class HistorySettingsController : ControllerBase
         _audit = audit;
     }
 
-    [HttpGet]
+    [HttpGet("api/admin/history-settings")]
     public async Task<IActionResult> Get(CancellationToken ct) => Ok(await _settings.GetAllAsync(ct));
 
-    [HttpPut]
+    [HttpPut("api/admin/history-settings")]
     public async Task<IActionResult> Set([FromBody] SetHistorySettingsRequest request, CancellationToken ct)
     {
         try

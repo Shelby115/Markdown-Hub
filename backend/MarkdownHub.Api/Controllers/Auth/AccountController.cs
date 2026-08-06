@@ -16,7 +16,6 @@ public record LinkedIdentityResponse(int Id, int ProviderId, string ProviderName
 public record SessionResponse(Guid Id, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt, DateTimeOffset LastActivityAt, string? UserAgent, string? IpAddress, bool IsCurrent);
 
 [ApiController]
-[Route("api/me")]
 [Authorize]
 public class AccountController : ControllerBase
 {
@@ -44,7 +43,7 @@ public class AccountController : ControllerBase
     /// <summary>Real login events (local or external) are audited where they actually happen -
     /// AuthController - so this profile fetch, called on every page load, doesn't itself
     /// double-log a login every time.</summary>
-    [HttpGet]
+    [HttpGet("api/me")]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -52,7 +51,7 @@ public class AccountController : ControllerBase
         return Ok(new { user.Id, user.Username, user.Email, user.DisplayName, user.IsAdministrator, user.DefaultFolderPath });
     }
 
-    [HttpPost("logout")]
+    [HttpPost("api/me/logout")]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -70,7 +69,7 @@ public class AccountController : ControllerBase
 
     /// <summary>Sets the folder the file tree should auto-expand to when this user opens the
     /// home page. A self-service preference - any authenticated user may set their own.</summary>
-    [HttpPut("default-folder")]
+    [HttpPut("api/me/default-folder")]
     public async Task<IActionResult> SetDefaultFolder([FromBody] SetDefaultFolderRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -85,7 +84,7 @@ public class AccountController : ControllerBase
     /// <summary>Auth.md §7 - requires the current password unless the account has none yet
     /// (e.g. an external-provider-only account setting a password for the first time).
     /// Invalidates every other active session; the current one stays valid.</summary>
-    [HttpPost("change-password")]
+    [HttpPost("api/me/change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -118,7 +117,7 @@ public class AccountController : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("authentication-methods")]
+    [HttpGet("api/me/authentication-methods")]
     public async Task<IActionResult> GetAuthenticationMethods(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -136,7 +135,7 @@ public class AccountController : ControllerBase
     /// <summary>Removes one linked external identity. Refuses if it's this user's last usable
     /// authentication method (Auth.md §10/§31.6) - a local password can only be removed by never
     /// having been set, so there's no corresponding "remove password" endpoint.</summary>
-    [HttpDelete("authentication-methods/{id:int}")]
+    [HttpDelete("api/me/authentication-methods/{id:int}")]
     public async Task<IActionResult> RemoveAuthenticationMethod(int id, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -155,7 +154,7 @@ public class AccountController : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("sessions")]
+    [HttpGet("api/me/sessions")]
     public async Task<IActionResult> GetSessions(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -173,7 +172,7 @@ public class AccountController : ControllerBase
             s.Id, s.CreatedAt, s.ExpiresAt, s.LastActivityAt, s.UserAgent, s.IpAddress, s.Id == CurrentSessionId)));
     }
 
-    [HttpDelete("sessions/{id:guid}")]
+    [HttpDelete("api/me/sessions/{id:guid}")]
     public async Task<IActionResult> RevokeSession(Guid id, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

@@ -25,7 +25,6 @@ public record ActivityPageDto(IReadOnlyList<ActivitySummaryDto> Items, int Total
 /// same table the original admin-action audit trail already used.
 /// </summary>
 [ApiController]
-[Route("api/admin/activity")]
 [Authorize(Policy = "RequireAdministrator")]
 public class ActivityController : ControllerBase
 {
@@ -40,7 +39,7 @@ public class ActivityController : ControllerBase
         _settings = settings;
     }
 
-    [HttpGet]
+    [HttpGet("api/admin/activity")]
     public async Task<IActionResult> Query(
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
@@ -95,7 +94,7 @@ public class ActivityController : ControllerBase
         return Ok(new ActivityPageDto(items, totalCount, page, pageSize));
     }
 
-    [HttpGet("{id:int}")]
+    [HttpGet("api/admin/activity/{id:int}")]
     public async Task<IActionResult> GetDetail(int id, CancellationToken ct)
     {
         var entry = await _db.AuditLog.FirstOrDefaultAsync(a => a.Id == id, ct);
@@ -109,7 +108,7 @@ public class ActivityController : ControllerBase
     }
 
     /// <summary>Distinct action types seen so far, for the filter dropdown.</summary>
-    [HttpGet("action-types")]
+    [HttpGet("api/admin/activity/action-types")]
     public async Task<IActionResult> GetActionTypes(CancellationToken ct)
     {
         var actions = await _db.AuditLog.Select(a => a.Action).Distinct().OrderBy(a => a).ToListAsync(ct);

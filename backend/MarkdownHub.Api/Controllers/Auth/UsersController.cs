@@ -26,7 +26,6 @@ public record AdminSetPasswordRequest(string NewPassword);
 /// always go through an already-authenticated session, never an automatic username/email match).
 /// </summary>
 [ApiController]
-[Route("api/admin")]
 [Authorize(Policy = "RequireAdministrator")]
 public class UsersController : ControllerBase
 {
@@ -46,7 +45,7 @@ public class UsersController : ControllerBase
         _safety = safety;
     }
 
-    [HttpGet("users")]
+    [HttpGet("api/admin/users")]
     public async Task<IActionResult> ListUsers(CancellationToken ct)
     {
         var users = await _db.Users
@@ -66,7 +65,7 @@ public class UsersController : ControllerBase
         return Ok(users);
     }
 
-    [HttpPost("users")]
+    [HttpPost("api/admin/users")]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         var username = request.Username.Trim();
@@ -97,7 +96,7 @@ public class UsersController : ControllerBase
 
     /// <summary>Sets a user's password without needing to know their existing one (Auth.md §7),
     /// and revokes their other active sessions the same way a self-service password change does.</summary>
-    [HttpPost("users/{id:int}/set-password")]
+    [HttpPost("api/admin/users/{id:int}/set-password")]
     public async Task<IActionResult> SetPassword(int id, [FromBody] AdminSetPasswordRequest request, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
@@ -116,7 +115,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("users/{id:int}/disable")]
+    [HttpPost("api/admin/users/{id:int}/disable")]
     public async Task<IActionResult> DisableUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
@@ -133,7 +132,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("users/{id:int}/enable")]
+    [HttpPost("api/admin/users/{id:int}/enable")]
     public async Task<IActionResult> EnableUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
@@ -144,7 +143,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("users/{id:int}/promote")]
+    [HttpPost("api/admin/users/{id:int}/promote")]
     public async Task<IActionResult> PromoteToAdmin(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
@@ -155,7 +154,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("users/{id:int}/demote")]
+    [HttpPost("api/admin/users/{id:int}/demote")]
     public async Task<IActionResult> DemoteToUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
@@ -172,7 +171,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpDelete("users/{id:int}")]
+    [HttpDelete("api/admin/users/{id:int}")]
     public async Task<IActionResult> DeleteUser(int id, CancellationToken ct)
     {
         var user = await _db.Users.FindAsync([id], ct);
@@ -192,7 +191,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("permissions")]
+    [HttpGet("api/admin/permissions")]
     public async Task<IActionResult> ListAllPermissions(CancellationToken ct)
     {
         var perms = await _db.FolderPermissions
@@ -202,14 +201,14 @@ public class UsersController : ControllerBase
         return Ok(perms);
     }
 
-    [HttpGet("permissions/{userId:int}")]
+    [HttpGet("api/admin/permissions/{userId:int}")]
     public async Task<IActionResult> GetPermissions(int userId, CancellationToken ct)
     {
         var perms = await _db.FolderPermissions.Where(p => p.AppUserId == userId).ToListAsync(ct);
         return Ok(perms);
     }
 
-    [HttpPost("permissions")]
+    [HttpPost("api/admin/permissions")]
     public async Task<IActionResult> GrantPermission([FromBody] GrantPermissionRequest request, CancellationToken ct)
     {
         var folderPath = request.FolderPath.Trim('/');
@@ -237,7 +236,7 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
-    [HttpDelete("permissions/{id:int}")]
+    [HttpDelete("api/admin/permissions/{id:int}")]
     public async Task<IActionResult> RevokePermission(int id, CancellationToken ct)
     {
         var perm = await _db.FolderPermissions.FindAsync([id], ct);

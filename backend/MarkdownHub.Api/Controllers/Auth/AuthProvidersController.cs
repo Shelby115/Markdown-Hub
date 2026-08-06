@@ -30,7 +30,6 @@ public record ProviderPresetResponse(string Key, string DisplayName, AuthProvide
 /// AccountSafetyService), not "keep at least one provider enabled."
 /// </summary>
 [ApiController]
-[Route("api/admin/auth-providers")]
 [Authorize(Policy = "RequireAdministrator")]
 public class AuthProvidersController : ControllerBase
 {
@@ -50,7 +49,7 @@ public class AuthProvidersController : ControllerBase
         _secretProtector = secretProtector;
     }
 
-    [HttpGet]
+    [HttpGet("api/admin/auth-providers")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var providers = await _db.AuthenticationProviders.OrderBy(p => p.Id).ToListAsync(ct);
@@ -59,11 +58,11 @@ public class AuthProvidersController : ControllerBase
         return Ok(responses);
     }
 
-    [HttpGet("presets")]
+    [HttpGet("api/admin/auth-providers/presets")]
     public IActionResult Presets() =>
         Ok(ProviderPresets.All.Select(p => new ProviderPresetResponse(p.Key, p.DisplayName, p.Type, p.Configuration)));
 
-    [HttpPost]
+    [HttpPost("api/admin/auth-providers")]
     public async Task<IActionResult> Create([FromBody] CreateAuthenticationProviderRequest request, CancellationToken ct)
     {
         var validationError = ValidateRequest(request.DisplayName, request.ClientId, request.Type, request.Configuration);
@@ -90,7 +89,7 @@ public class AuthProvidersController : ControllerBase
         return Ok(await ToResponseAsync(provider, ct));
     }
 
-    [HttpPut("{id:int}")]
+    [HttpPut("api/admin/auth-providers/{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateAuthenticationProviderRequest request, CancellationToken ct)
     {
         var provider = await _db.AuthenticationProviders.FindAsync([id], ct);
@@ -111,7 +110,7 @@ public class AuthProvidersController : ControllerBase
         return Ok(await ToResponseAsync(provider, ct));
     }
 
-    [HttpDelete("{id:int}")]
+    [HttpDelete("api/admin/auth-providers/{id:int}")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         var provider = await _db.AuthenticationProviders.FindAsync([id], ct);
@@ -126,7 +125,7 @@ public class AuthProvidersController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("{id:int}/enable")]
+    [HttpPost("api/admin/auth-providers/{id:int}/enable")]
     public async Task<IActionResult> Enable(int id, CancellationToken ct)
     {
         var provider = await _db.AuthenticationProviders.FindAsync([id], ct);
@@ -138,7 +137,7 @@ public class AuthProvidersController : ControllerBase
         return Ok(await ToResponseAsync(provider, ct));
     }
 
-    [HttpPost("{id:int}/disable")]
+    [HttpPost("api/admin/auth-providers/{id:int}/disable")]
     public async Task<IActionResult> Disable(int id, CancellationToken ct)
     {
         var provider = await _db.AuthenticationProviders.FindAsync([id], ct);

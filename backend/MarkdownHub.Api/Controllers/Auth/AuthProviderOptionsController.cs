@@ -14,7 +14,6 @@ public record AuthProviderResponse(int Id, string Name, string DisplayName, Auth
 /// local username/password works with zero providers configured (Auth.md §5).
 /// </summary>
 [ApiController]
-[Route("api/auth/providers")]
 [AllowAnonymous]
 public class AuthProviderOptionsController : ControllerBase
 {
@@ -25,7 +24,7 @@ public class AuthProviderOptionsController : ControllerBase
         _db = db;
     }
 
-    [HttpGet]
+    [HttpGet("api/auth/providers")]
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var providers = await _db.AuthenticationProviders

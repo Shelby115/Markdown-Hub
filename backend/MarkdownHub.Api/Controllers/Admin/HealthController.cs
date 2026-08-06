@@ -6,7 +6,6 @@ using MarkdownHub.Api.Services;
 namespace MarkdownHub.Api.Controllers.Admin;
 
 [ApiController]
-[Route("health")]
 public class HealthController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -20,7 +19,7 @@ public class HealthController : ControllerBase
         _httpClientFactory = httpClientFactory;
     }
 
-    [HttpGet]
+    [HttpGet("health")]
     [Microsoft.AspNetCore.Authorization.AllowAnonymous]
     public async Task<IActionResult> Get(CancellationToken ct)
     {

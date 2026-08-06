@@ -14,7 +14,6 @@ public record RenameRequest(string NewRelativePath);
 public record TemplateInfo(string RelativePath, string PageName);
 
 [ApiController]
-[Route("api/files")]
 [Authorize]
 public class FilesController : ControllerBase
 {
@@ -39,7 +38,7 @@ public class FilesController : ControllerBase
     }
 
     /// <summary>Returns the full folder/file tree the current user has at least View access to.</summary>
-    [HttpGet("tree")]
+    [HttpGet("api/files/tree")]
     public async Task<IActionResult> GetTree(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -53,7 +52,7 @@ public class FilesController : ControllerBase
     }
 
     /// <summary>Lists every page marked as a template - these can live anywhere in the hub.</summary>
-    [HttpGet("templates")]
+    [HttpGet("api/files/templates")]
     public async Task<IActionResult> GetTemplates(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -71,7 +70,7 @@ public class FilesController : ControllerBase
     public record MarkTemplateRequest(bool IsTemplate);
 
     /// <summary>Marks/unmarks a page as available as a template when creating new pages.</summary>
-    [HttpPost("mark-template/{**relativePath}")]
+    [HttpPost("api/files/mark-template/{**relativePath}")]
     public async Task<IActionResult> MarkTemplate(string relativePath, [FromBody] MarkTemplateRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -87,7 +86,7 @@ public class FilesController : ControllerBase
     }
 
     /// <summary>Creates an empty folder in the hub.</summary>
-    [HttpPost("folder/{**relativePath}")]
+    [HttpPost("api/files/folder/{**relativePath}")]
     public async Task<IActionResult> CreateFolder(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -135,7 +134,7 @@ public class FilesController : ControllerBase
     }
 
     /// <summary>Loads a page fresh from disk (never cached) so external edits are always picked up.</summary>
-    [HttpGet("{**relativePath}")]
+    [HttpGet("api/files/{**relativePath}")]
     public async Task<IActionResult> GetPage(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -174,7 +173,7 @@ public class FilesController : ControllerBase
         }
     }
 
-    [HttpPut("{**relativePath}")]
+    [HttpPut("api/files/{**relativePath}")]
     public async Task<IActionResult> SavePage(string relativePath, [FromBody] SavePageRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -216,7 +215,7 @@ public class FilesController : ControllerBase
         }
     }
 
-    [HttpDelete("{**relativePath}")]
+    [HttpDelete("api/files/{**relativePath}")]
     public async Task<IActionResult> DeletePage(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -229,7 +228,7 @@ public class FilesController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("rename/{**relativePath}")]
+    [HttpPost("api/files/rename/{**relativePath}")]
     public async Task<IActionResult> Rename(string relativePath, [FromBody] RenameRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -256,7 +255,7 @@ public class FilesController : ControllerBase
 
     /// <summary>Renames/moves a folder and everything inside it. Requires Manage on the source
     /// folder (same bar as deleting) and Edit on the destination (same bar as file rename).</summary>
-    [HttpPost("rename-folder/{**relativePath}")]
+    [HttpPost("api/files/rename-folder/{**relativePath}")]
     public async Task<IActionResult> RenameFolder(string relativePath, [FromBody] RenameRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -297,7 +296,7 @@ public class FilesController : ControllerBase
 
     /// <summary>Deletes a folder and everything inside it. Requires Manage on the folder, same
     /// bar as deleting a single file.</summary>
-    [HttpDelete("folder/{**relativePath}")]
+    [HttpDelete("api/files/folder/{**relativePath}")]
     public async Task<IActionResult> DeleteFolder(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

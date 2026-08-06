@@ -25,7 +25,6 @@ public record AssistantResponse(List<AssistantResultCard> Results);
 /// sent unless the caller explicitly selected every page.
 /// </summary>
 [ApiController]
-[Route("api/ai/assistant")]
 [Authorize]
 public class AiAssistantController : ControllerBase
 {
@@ -49,7 +48,7 @@ public class AiAssistantController : ControllerBase
     /// once someone tries to use it. Reuses ListModelsAsync rather than a dedicated ping - an
     /// unreachable provider throws, and a reachable one with nothing installed returns an empty
     /// list; either case means there's nothing usable yet.</summary>
-    [HttpGet("status")]
+    [HttpGet("api/ai/assistant/status")]
     public async Task<IActionResult> GetStatus(CancellationToken ct)
     {
         try
@@ -63,7 +62,7 @@ public class AiAssistantController : ControllerBase
         }
     }
 
-    [HttpPost]
+    [HttpPost("api/ai/assistant")]
     public async Task<IActionResult> Ask([FromBody] AssistantRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

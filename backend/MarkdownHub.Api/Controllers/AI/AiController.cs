@@ -14,7 +14,6 @@ public record AiEditResponse(string Result);
 /// directly; always through IAiService, per that abstraction's whole purpose.
 /// </summary>
 [ApiController]
-[Route("api/ai")]
 [Authorize]
 public class AiController : ControllerBase
 {
@@ -29,7 +28,7 @@ public class AiController : ControllerBase
         _currentUser = currentUser;
     }
 
-    [HttpPost("edit")]
+    [HttpPost("api/ai/edit")]
     public async Task<IActionResult> Edit([FromBody] AiEditRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

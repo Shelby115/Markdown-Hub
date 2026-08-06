@@ -27,7 +27,6 @@ public record DeletedDocumentDto(int DocumentId, string RelativePath, string Pag
 /// itself requires), never relying on the frontend to hide anything.
 /// </summary>
 [ApiController]
-[Route("api/versions")]
 [Authorize]
 public class VersionsController : ControllerBase
 {
@@ -50,7 +49,7 @@ public class VersionsController : ControllerBase
     }
 
     /// <summary>History for the currently-active document at this path.</summary>
-    [HttpGet("by-path/{**relativePath}")]
+    [HttpGet("api/versions/by-path/{**relativePath}")]
     public async Task<IActionResult> GetHistoryByPath(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -63,7 +62,7 @@ public class VersionsController : ControllerBase
         return Ok(await BuildHistoryDtoAsync(meta, ct));
     }
 
-    [HttpGet("{versionId:int}")]
+    [HttpGet("api/versions/{versionId:int}")]
     public async Task<IActionResult> GetVersion(int versionId, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -79,7 +78,7 @@ public class VersionsController : ControllerBase
         return Ok(await ToDetailDtoAsync(version, ct));
     }
 
-    [HttpGet("compare")]
+    [HttpGet("api/versions/compare")]
     public async Task<IActionResult> Compare([FromQuery] int fromId, [FromQuery] int toId, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -104,7 +103,7 @@ public class VersionsController : ControllerBase
     /// un-deletes it in the same step. Never overwrites/removes any existing version; always
     /// mints a new one (see VersionService.CreateRestoreVersionAsync).
     /// </summary>
-    [HttpPost("{versionId:int}/restore")]
+    [HttpPost("api/versions/{versionId:int}/restore")]
     public async Task<IActionResult> Restore(int versionId, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -137,7 +136,7 @@ public class VersionsController : ControllerBase
 
     /// <summary>Soft-deleted documents the current user has at least Manage access to - the
     /// same permission level deleting them required in the first place.</summary>
-    [HttpGet("deleted")]
+    [HttpGet("api/versions/deleted")]
     public async Task<IActionResult> ListDeleted(CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

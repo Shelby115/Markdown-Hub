@@ -7,7 +7,6 @@ using MarkdownHub.Api.Services;
 namespace MarkdownHub.Api.Controllers.Admin;
 
 [ApiController]
-[Route("api/admin/maintenance")]
 [Authorize(Policy = "RequireAdministrator")]
 public class MaintenanceController : ControllerBase
 {
@@ -25,7 +24,7 @@ public class MaintenanceController : ControllerBase
     }
 
     /// <summary>Rebuilds the FTS search index from the filesystem. SQLite metadata loss never touches Markdown content.</summary>
-    [HttpPost("rebuild-search-index")]
+    [HttpPost("api/admin/maintenance/rebuild-search-index")]
     public async Task<IActionResult> RebuildSearchIndex(CancellationToken ct)
     {
         await _search.RebuildFromFilesystemAsync(_hub, ct);
@@ -33,7 +32,7 @@ public class MaintenanceController : ControllerBase
     }
 
     /// <summary>Rebuilds PageMetadata + PageLinks (backlinks graph) from the filesystem, independent of the search index.</summary>
-    [HttpPost("rebuild-metadata")]
+    [HttpPost("api/admin/maintenance/rebuild-metadata")]
     public async Task<IActionResult> RebuildMetadata([FromServices] MarkdownFileService fileService, CancellationToken ct)
     {
         foreach (var file in Directory.EnumerateFiles(_hub.Root, "*.md", SearchOption.AllDirectories))
@@ -44,14 +43,14 @@ public class MaintenanceController : ControllerBase
         return Ok(new { message = "File metadata rebuilt." });
     }
 
-    [HttpGet("conflicts")]
+    [HttpGet("api/admin/maintenance/conflicts")]
     public async Task<IActionResult> ListConflicts(CancellationToken ct)
     {
         var conflicts = await _db.ConflictFiles.Where(c => !c.Resolved).ToListAsync(ct);
         return Ok(conflicts);
     }
 
-    [HttpPost("conflicts/{id:int}/resolve")]
+    [HttpPost("api/admin/maintenance/conflicts/{id:int}/resolve")]
     public async Task<IActionResult> ResolveConflict(int id, [FromQuery] bool deleteConflictFile, CancellationToken ct)
     {
         var conflict = await _db.ConflictFiles.FindAsync([id], ct);
@@ -67,14 +66,14 @@ public class MaintenanceController : ControllerBase
         return NoContent();
     }
 
-    [HttpPost("backup")]
+    [HttpPost("api/admin/maintenance/backup")]
     public async Task<IActionResult> RunBackupNow(CancellationToken ct)
     {
         var record = await _backup.RunBackupAsync(manual: true, ct);
         return Ok(record);
     }
 
-    [HttpGet("backups")]
+    [HttpGet("api/admin/maintenance/backups")]
     public async Task<IActionResult> ListBackups(CancellationToken ct)
     {
         var backups = await _db.Backups.OrderByDescending(b => b.CreatedAt).ToListAsync(ct);

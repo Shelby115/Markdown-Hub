@@ -20,7 +20,6 @@ public record ExternalLinkStartResponse(string RedirectUrl);
 /// token this app minted itself (see AppTokenService).
 /// </summary>
 [ApiController]
-[Route("api/auth")]
 public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -45,7 +44,7 @@ public class AuthController : ControllerBase
 
     private string? RemoteIp => HttpContext.Connection.RemoteIpAddress?.ToString();
 
-    [HttpPost("login")]
+    [HttpPost("api/auth/login")]
     [AllowAnonymous]
     [EnableRateLimiting("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
@@ -85,7 +84,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>Starts the login-intent authorization redirect for an enabled provider.</summary>
-    [HttpGet("external/{providerName}")]
+    [HttpGet("api/auth/external/{providerName}")]
     [AllowAnonymous]
     public async Task<IActionResult> ExternalLogin(string providerName, [FromQuery] string? returnOrigin, CancellationToken ct)
     {
@@ -110,7 +109,7 @@ public class AuthController : ControllerBase
     /// caller. Returns the URL as JSON (rather than redirecting directly) since this is an
     /// authenticated fetch call, not a page navigation - the frontend performs the actual
     /// browser redirect itself.</summary>
-    [HttpPost("external/{providerName}/link-start")]
+    [HttpPost("api/auth/external/{providerName}/link-start")]
     [Authorize]
     public async Task<IActionResult> ExternalLinkStart(string providerName, [FromQuery] string? returnOrigin, CancellationToken ct)
     {
@@ -126,7 +125,7 @@ public class AuthController : ControllerBase
         return Ok(new ExternalLinkStartResponse(url));
     }
 
-    [HttpGet("external/{providerName}/callback")]
+    [HttpGet("api/auth/external/{providerName}/callback")]
     [AllowAnonymous]
     public async Task<IActionResult> ExternalCallback(string providerName,
         [FromQuery] string? code, [FromQuery] string? state, [FromQuery] string? error, CancellationToken ct)

@@ -6,7 +6,6 @@ using MarkdownHub.Api.Services;
 namespace MarkdownHub.Api.Controllers;
 
 [ApiController]
-[Route("api/search")]
 [Authorize]
 public class SearchController : ControllerBase
 {
@@ -21,7 +20,7 @@ public class SearchController : ControllerBase
         _currentUser = currentUser;
     }
 
-    [HttpGet]
+    [HttpGet("api/search")]
     public async Task<IActionResult> Search([FromQuery] string q, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

@@ -10,7 +10,6 @@ namespace MarkdownHub.Api.Controllers;
 public record BacklinkResult(string RelativePath, string PageName);
 
 [ApiController]
-[Route("api/backlinks")]
 [Authorize]
 public class BacklinksController : ControllerBase
 {
@@ -25,7 +24,7 @@ public class BacklinksController : ControllerBase
         _currentUser = currentUser;
     }
 
-    [HttpGet("{**relativePath}")]
+    [HttpGet("api/backlinks/{**relativePath}")]
     public async Task<IActionResult> GetBacklinks(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

@@ -6,7 +6,6 @@ using MarkdownHub.Api.Services;
 namespace MarkdownHub.Api.Controllers;
 
 [ApiController]
-[Route("api/attachments")]
 [Authorize]
 public class AttachmentsController : ControllerBase
 {
@@ -37,7 +36,7 @@ public class AttachmentsController : ControllerBase
     /// folder within the target folder's tree. Validates extension, size, and magic
     /// bytes so a renamed .exe can't slip through as a ".png".
     /// </summary>
-    [HttpPost]
+    [HttpPost("api/attachments")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> Upload([FromQuery] string folder, IFormFile file, CancellationToken ct)
     {
@@ -83,7 +82,7 @@ public class AttachmentsController : ControllerBase
     /// file shares that filename (see HubPathService.PickClosestMatch); omit it and an
     /// ambiguous name just resolves deterministically instead of by proximity.
     /// </summary>
-    [HttpGet("resolve")]
+    [HttpGet("api/attachments/resolve")]
     public async Task<IActionResult> Resolve([FromQuery] string filename, [FromQuery] string? from, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -101,7 +100,7 @@ public class AttachmentsController : ControllerBase
         return Ok(new { relativePath });
     }
 
-    [HttpGet("{**relativePath}")]
+    [HttpGet("api/attachments/{**relativePath}")]
     public async Task<IActionResult> GetAttachment(string relativePath, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

@@ -9,7 +9,6 @@ namespace MarkdownHub.Api.Controllers;
 
 /// <summary>Powers the "[[ " autocomplete suggestion dropdown in the editor.</summary>
 [ApiController]
-[Route("api/wikilink-suggestions")]
 [Authorize]
 public class WikiLinkSuggestionsController : ControllerBase
 {
@@ -24,7 +23,7 @@ public class WikiLinkSuggestionsController : ControllerBase
         _currentUser = currentUser;
     }
 
-    [HttpGet]
+    [HttpGet("api/wikilink-suggestions")]
     public async Task<IActionResult> Suggest([FromQuery] string prefix, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);

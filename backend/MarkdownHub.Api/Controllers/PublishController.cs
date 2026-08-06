@@ -10,7 +10,6 @@ namespace MarkdownHub.Api.Controllers;
 public record PublishRequest(bool Published);
 
 [ApiController]
-[Route("api/publish")]
 public class PublishController : ControllerBase
 {
     private readonly AppDbContext _db;
@@ -33,7 +32,7 @@ public class PublishController : ControllerBase
 
     /// <summary>Toggle publish state. Requires Edit access on the page. Auth required.</summary>
     [Authorize]
-    [HttpPost("{**relativePath}")]
+    [HttpPost("api/publish/{**relativePath}")]
     public async Task<IActionResult> SetPublished(string relativePath, [FromBody] PublishRequest request, CancellationToken ct)
     {
         var user = await _currentUser.GetCurrentAsync(ct);
@@ -60,7 +59,7 @@ public class PublishController : ControllerBase
     /// page references unless those are separately published.
     /// </summary>
     [AllowAnonymous]
-    [HttpGet("view/{slug}")]
+    [HttpGet("api/publish/view/{slug}")]
     public async Task<IActionResult> ViewPublished(string slug, CancellationToken ct)
     {
         var meta = await _db.Pages.FirstOrDefaultAsync(p => p.PublishSlug == slug && p.IsPublished && !p.IsDeleted, ct);
@@ -95,7 +94,7 @@ public class PublishController : ControllerBase
     /// arbitrary hub content (e.g. other .md files) by guessing filenames.
     /// </summary>
     [AllowAnonymous]
-    [HttpGet("{slug}/attachment")]
+    [HttpGet("api/publish/{slug}/attachment")]
     public async Task<IActionResult> GetPublishedAttachment(string slug, [FromQuery] string filename, CancellationToken ct)
     {
         var publishedPage = await _db.Pages.FirstOrDefaultAsync(p => p.PublishSlug == slug && p.IsPublished && !p.IsDeleted, ct);
