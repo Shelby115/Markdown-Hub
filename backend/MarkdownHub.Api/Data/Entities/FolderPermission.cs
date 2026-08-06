@@ -1,3 +1,5 @@
+using MarkdownHub.Api.Data.Entities.Auth;
+
 namespace MarkdownHub.Api.Data.Entities;
 
 public enum PermissionLevel

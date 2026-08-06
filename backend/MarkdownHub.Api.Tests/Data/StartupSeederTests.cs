@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MarkdownHub.Api.Data;
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Auth;
 using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Tests.Data;

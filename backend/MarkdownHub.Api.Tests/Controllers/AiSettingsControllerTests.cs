@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using MarkdownHub.Api.Controllers;
+using MarkdownHub.Api.Controllers.AI;
 using MarkdownHub.Api.Data;
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Auth;
 using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Tests.Controllers;

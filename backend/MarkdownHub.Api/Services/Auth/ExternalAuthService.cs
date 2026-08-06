@@ -11,7 +11,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Auth;
 
 namespace MarkdownHub.Api.Services;
 

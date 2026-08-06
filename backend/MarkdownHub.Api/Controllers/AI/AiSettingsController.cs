@@ -5,7 +5,7 @@ using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Data.Entities;
 using MarkdownHub.Api.Services;
 
-namespace MarkdownHub.Api.Controllers;
+namespace MarkdownHub.Api.Controllers.AI;
 
 public record AiSettingsResponse(string? SelectedModel, string ConfiguredDefaultModel, string EffectiveModel);
 public record SetAiModelRequest(string? Model);

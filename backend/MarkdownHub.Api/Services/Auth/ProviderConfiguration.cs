@@ -1,4 +1,4 @@
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Auth;
 
 namespace MarkdownHub.Api.Services;
 

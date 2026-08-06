@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MarkdownHub.Api.Services;
 
-namespace MarkdownHub.Api.Controllers;
+namespace MarkdownHub.Api.Controllers.Admin;
 
 public record SetHistorySettingsRequest(int VersionRetentionDays, int ActivityRetentionDays, int ActivityDefaultDays);
 

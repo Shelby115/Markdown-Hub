@@ -1,4 +1,4 @@
-namespace MarkdownHub.Api.Data.Entities;
+namespace MarkdownHub.Api.Data.Entities.Admin;
 
 public class BackupRecord
 {

@@ -1,4 +1,4 @@
-namespace MarkdownHub.Api.Data.Entities;
+namespace MarkdownHub.Api.Data.Entities.Auth;
 
 /// <summary>
 /// A server-tracked login session. The app issues a bearer JWT carrying this row's Id as its

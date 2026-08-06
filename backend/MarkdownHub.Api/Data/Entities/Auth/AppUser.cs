@@ -1,4 +1,4 @@
-namespace MarkdownHub.Api.Data.Entities;
+namespace MarkdownHub.Api.Data.Entities.Auth;
 
 /// <summary>
 /// The application's own user account - the single source of truth for identity and

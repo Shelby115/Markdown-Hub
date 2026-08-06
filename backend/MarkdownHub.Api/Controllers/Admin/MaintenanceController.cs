@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Services;
 
-namespace MarkdownHub.Api.Controllers;
+namespace MarkdownHub.Api.Controllers.Admin;
 
 [ApiController]
 [Route("api/admin/maintenance")]

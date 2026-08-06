@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Auth;
 using MarkdownHub.Api.Middleware;
 using MarkdownHub.Api.Services;
 

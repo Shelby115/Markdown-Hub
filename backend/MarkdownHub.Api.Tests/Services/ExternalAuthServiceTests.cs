@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.IdentityModel.Tokens;
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Auth;
 using MarkdownHub.Api.Services;
 
 namespace MarkdownHub.Api.Tests.Services;

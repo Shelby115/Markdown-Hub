@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MarkdownHub.Api.Data.Entities;
 using MarkdownHub.Api.Services;
 
-namespace MarkdownHub.Api.Controllers;
+namespace MarkdownHub.Api.Controllers.AI;
 
 public enum AssistantAction
 {

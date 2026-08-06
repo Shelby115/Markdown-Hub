@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Services;
 
-namespace MarkdownHub.Api.Controllers;
+namespace MarkdownHub.Api.Controllers.Admin;
 
 // IpAddress is included even in the summary (not just detail) because unauthenticated events
 // (UserId null) have no username to show - section 2.6 requires the IP to be the *primary*

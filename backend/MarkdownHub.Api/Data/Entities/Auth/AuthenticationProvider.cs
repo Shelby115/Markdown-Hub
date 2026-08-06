@@ -1,4 +1,4 @@
-namespace MarkdownHub.Api.Data.Entities;
+namespace MarkdownHub.Api.Data.Entities.Auth;
 
 public enum AuthProviderType
 {

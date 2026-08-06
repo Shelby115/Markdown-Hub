@@ -1,6 +1,6 @@
 using System.IO.Compression;
 using MarkdownHub.Api.Data;
-using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Admin;
 using Microsoft.EntityFrameworkCore;
 
 namespace MarkdownHub.Api.Services;

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Data.Entities;
+using MarkdownHub.Api.Data.Entities.Admin;
 
 namespace MarkdownHub.Api.Services;
 

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using MarkdownHub.Api.Data;
 using MarkdownHub.Api.Services;
 
-namespace MarkdownHub.Api.Controllers;
+namespace MarkdownHub.Api.Controllers.Admin;
 
 [ApiController]
 [Route("health")]
@@ -58,7 +58,7 @@ public class HealthController : ControllerBase
         try
         {
             var configJson = await _db.AuthenticationProviders
-                .Where(p => p.Enabled && p.Type == Data.Entities.AuthProviderType.Oidc)
+                .Where(p => p.Enabled && p.Type == Data.Entities.Auth.AuthProviderType.Oidc)
                 .OrderBy(p => p.Id).Select(p => p.ConfigurationJson).FirstOrDefaultAsync(ct);
             var authority = configJson is null ? null : Services.ExternalAuthService.ParseConfiguration(configJson).Authority;
 

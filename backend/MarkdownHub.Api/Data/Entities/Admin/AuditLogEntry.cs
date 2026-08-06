@@ -1,4 +1,4 @@
-namespace MarkdownHub.Api.Data.Entities;
+namespace MarkdownHub.Api.Data.Entities.Admin;
 
 /// <summary>
 /// A single admin-audit/activity-log entry - the shared backbone for both the original

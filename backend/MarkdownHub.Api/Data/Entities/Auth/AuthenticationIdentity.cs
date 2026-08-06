@@ -1,4 +1,4 @@
-namespace MarkdownHub.Api.Data.Entities;
+namespace MarkdownHub.Api.Data.Entities.Auth;
 
 /// <summary>
 /// Links an application user to one external provider identity. A user may have any number of
