@@ -1,6 +1,7 @@
 # .NET
 backend/**/bin/
 backend/**/obj/
+backend/**/TestResults/
 *.user
 
 # Node
@@ -13,7 +14,19 @@ frontend/dist/
 *.db-shm
 *.db-wal
 
+# Default HUB_HOST_PATH target - your own Markdown hub and any local backups
+# land here. Never commit your notes.
+/data/
+
 # Env
 .env
+.env.local
+.env.*.local
 docker-compose.override.yml
+
+# Editors / tooling
 /.vs
+.idea/
+.claude/
+.DS_Store
+Thumbs.db

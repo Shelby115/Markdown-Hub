@@ -1,0 +1,6 @@
+# Host build output must never enter the image - the build stage restores and
+# publishes on its own.
+bin/
+obj/
+Dockerfile
+.dockerignore

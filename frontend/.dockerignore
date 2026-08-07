@@ -1,0 +1,8 @@
+# Host build artifacts must never enter the image - the build stage runs its own
+# npm install, and copying a host node_modules over it breaks native binaries when
+# the host and the container aren't the same platform.
+node_modules/
+dist/
+*.tsbuildinfo
+Dockerfile
+.dockerignore
