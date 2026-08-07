@@ -44,7 +44,9 @@
 
 Sign in with `ADMIN_USERNAME` / `ADMIN_PASSWORD` from step 1.
 
-### External providers (optional)
+### 4. Configure Optional Features
+
+#### External providers (optional)
 
 Add any number of external providers from **Admin → Authentication providers** at any time, no
 restart or `.env` changes needed. Presets exist for Google, GitHub, Facebook, and Keycloak, plus
@@ -70,7 +72,7 @@ identity) that would leave the *last remaining administrator* with no way to sig
 give it to them out of band. They log in locally once, then link Google/GitHub/etc. themselves
 from their own Account page - accounts are never auto-linked by matching username or email.
 
-### Advanced
+#### Advanced
 
 - **`AUTH_PUBLIC_API_ORIGIN`** — only needed if the API sits behind a reverse proxy that doesn't
   forward the original scheme/host, leaving the app unable to compute a correct callback
@@ -93,7 +95,7 @@ from their own Account page - accounts are never auto-linked by matching usernam
         - "your-idp-hostname.example.com:host-gateway"
   ```
 
-### AI assistant (optional)
+#### AI assistant (optional)
 
 Powers the AI Assistant side panel, backed by a local [Ollama](https://ollama.com) instance you
 provide — nothing is sent to a third-party API. Everything else works fully without it.
