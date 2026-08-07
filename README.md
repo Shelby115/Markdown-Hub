@@ -26,9 +26,10 @@
 | `HUB_HOST_PATH` | No | Where Markdown files live on the host. Relative paths are created automatically; point it at an existing folder to import an existing hub. Default `./data/markdown`. |
 | `API_PORT` / `FRONTEND_PORT` | No | Default `8085` / `8086`. |
 | `FRONTEND_ORIGIN` | Only if exposed beyond localhost | Your real external origin (scheme + host, no trailing slash) — added to allowed CORS origins and used as the default sign-in redirect target. |
-| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | Optional AI-assisted editing, needs a reachable Ollama instance. App runs fine without it. |
+| `OIDC_DEFAULT_*` | No | Seeds one external OIDC provider on first boot, as a shortcut past the admin page. Needs `_AUTHORITY`, `_CLIENT_ID`, and `_CLIENT_SECRET` set together, and only applies while no provider exists yet. |
+| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | No | Optional AI assistant, needs a reachable Ollama instance. App runs fine without it. |
 
-`OIDC_DEFAULT_*`, `AUTH_PUBLIC_API_ORIGIN`, `JWT_SIGNING_KEY`, and `SESSION_LIFETIME_HOURS` are all optional too - see "External providers" and "Advanced" below.
+`AUTH_PUBLIC_API_ORIGIN`, `JWT_SIGNING_KEY`, and `SESSION_LIFETIME_HOURS` are optional too - see "Advanced" below.
 
 ### 2. Start it
 
