@@ -33,11 +33,13 @@ public class GenerationPoolService
 
     private readonly AppDbContext _db;
     private readonly IAiService _ai;
+    private readonly PoolActivityTracker _activity;
 
-    public GenerationPoolService(AppDbContext db, IAiService ai)
+    public GenerationPoolService(AppDbContext db, IAiService ai, PoolActivityTracker activity)
     {
         _db = db;
         _ai = ai;
+        _activity = activity;
     }
 
     // --- Settings ---
@@ -273,9 +275,19 @@ public class GenerationPoolService
                 continue;
             }
 
-            if (await GenerateEntryAsync(pool, ct) is not null)
+            // Marked for the whole model call so the admin page can show which pool is filling -
+            // a single entry can take long enough to look like nothing is happening.
+            _activity.Start(pool.Name);
+            try
             {
-                added++;
+                if (await GenerateEntryAsync(pool, ct) is not null)
+                {
+                    added++;
+                }
+            }
+            finally
+            {
+                _activity.Finish();
             }
         }
         return added;

@@ -20,7 +20,7 @@ public class GenerationPoolServiceTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _sut = new GenerationPoolService(_db, _ai);
+        _sut = new GenerationPoolService(_db, _ai, new PoolActivityTracker());
     }
 
     public void Dispose() => _db.Dispose();

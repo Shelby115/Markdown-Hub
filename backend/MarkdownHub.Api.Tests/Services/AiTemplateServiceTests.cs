@@ -39,7 +39,7 @@ public class AiTemplateServiceTests : IDisposable
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new AppDbContext(options);
-        _pools = new GenerationPoolService(_db, _ai);
+        _pools = new GenerationPoolService(_db, _ai, new PoolActivityTracker());
         _sut = new AiTemplateService(_ai, _pools);
     }
 

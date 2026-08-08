@@ -14,12 +14,14 @@ namespace MarkdownHub.Api.Controllers.AI;
 public class AiPoolAdminController : ControllerBase
 {
     private readonly GenerationPoolService _pools;
+    private readonly PoolActivityTracker _activity;
     private readonly CurrentUserService _currentUser;
     private readonly AuditLogService _audit;
 
-    public AiPoolAdminController(GenerationPoolService pools, CurrentUserService currentUser, AuditLogService audit)
+    public AiPoolAdminController(GenerationPoolService pools, PoolActivityTracker activity, CurrentUserService currentUser, AuditLogService audit)
     {
         _pools = pools;
+        _activity = activity;
         _currentUser = currentUser;
         _audit = audit;
     }
@@ -28,10 +30,11 @@ public class AiPoolAdminController : ControllerBase
     public async Task<IActionResult> List(CancellationToken ct)
     {
         var pools = await _pools.ListPoolsAsync(ct);
+        var settings = await _pools.GetSettingsAsync(ct);
         var dtos = new List<GenerationPoolDto>();
         foreach (var pool in pools)
         {
-            dtos.Add(await ToDtoAsync(pool, ct));
+            dtos.Add(await ToDtoAsync(pool, settings, ct));
         }
         return Ok(dtos);
     }
@@ -43,7 +46,7 @@ public class AiPoolAdminController : ControllerBase
         {
             var pool = await _pools.CreatePoolAsync(request.Name, request.Instructions, request.TargetCount, request.Enabled, ct);
             await LogAsync("AiPool.Create", pool, ct);
-            return Ok(await ToDtoAsync(pool, ct));
+            return Ok(await ToDtoAsync(pool, await _pools.GetSettingsAsync(ct), ct));
         }
         catch (ArgumentException ex)
         {
@@ -70,7 +73,7 @@ public class AiPoolAdminController : ControllerBase
         }
 
         await LogAsync("AiPool.Update", pool, ct);
-        return Ok(await ToDtoAsync(pool, ct));
+        return Ok(await ToDtoAsync(pool, await _pools.GetSettingsAsync(ct), ct));
     }
 
     [HttpDelete("api/admin/ai/pools/{id:int}")]
@@ -154,12 +157,33 @@ public class AiPoolAdminController : ControllerBase
             new GenerationPoolSettingsDto(settings.Paused, settings.WindowStartUtc, settings.WindowEndUtc,
                 settings.IntervalSeconds, settings.UsedEntryRetentionDays),
             settings.IsAllowedAt(now),
+            ReasonFor(settings, now),
+            _activity.CurrentPoolName,
             now.UtcDateTime.ToString("HH:mm"));
     }
 
-    private async Task<GenerationPoolDto> ToDtoAsync(GenerationPool pool, CancellationToken ct) => new(
-        pool.Id, pool.Name, pool.Instructions, pool.TargetCount, pool.Enabled,
-        await _pools.CountReadyAsync(pool.Id, ct), pool.UpdatedAtUtc.UtcDateTime.ToString("o"));
+    private static string ReasonFor(GenerationPoolSettings settings, DateTimeOffset now)
+    {
+        if (settings.Paused)
+        {
+            return "Paused for every pool - nothing will be generated until you resume.";
+        }
+        if (!settings.IsWithinWindow(now))
+        {
+            return $"Generation is only allowed between {settings.WindowDescription}, and it is now {now.UtcDateTime:HH:mm} UTC.";
+        }
+        return settings.WindowDescription is string window
+            ? $"Inside the allowed window ({window}), checking every {settings.IntervalSeconds} seconds for a pool to top up."
+            : $"No window set, so pools are topped up at any hour - checking every {settings.IntervalSeconds} seconds.";
+    }
+
+    private async Task<GenerationPoolDto> ToDtoAsync(GenerationPool pool, GenerationPoolSettings settings, CancellationToken ct)
+    {
+        var ready = await _pools.CountReadyAsync(pool.Id, ct);
+        var status = PoolFillStatus.For(pool, ready, settings, DateTimeOffset.UtcNow, _activity.CurrentPoolName == pool.Name);
+        return new(pool.Id, pool.Name, pool.Instructions, pool.TargetCount, pool.Enabled, ready,
+            status.Label, status.Reason, pool.UpdatedAtUtc.UtcDateTime.ToString("o"));
+    }
 
     private static GenerationPoolEntryDto ToDto(GenerationPoolEntry entry) =>
         new(entry.Id, entry.Content, entry.Status, entry.CreatedAtUtc.UtcDateTime.ToString("o"));

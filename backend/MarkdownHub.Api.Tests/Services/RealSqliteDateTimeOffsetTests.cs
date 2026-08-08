@@ -84,7 +84,7 @@ public class RealSqliteDateTimeOffsetTests : IAsyncLifetime
             Status = GenerationPoolEntryStatus.Used, SpentAtUtc = DateTimeOffset.UtcNow.AddDays(-1),
         });
         await _db.SaveChangesAsync();
-        var sut = new GenerationPoolService(_db, new Controllers.FakeAiService());
+        var sut = new GenerationPoolService(_db, new Controllers.FakeAiService(), new PoolActivityTracker());
 
         Assert.Equal(1, await sut.CleanupUsedEntriesAsync(retentionDays: 90));
     }

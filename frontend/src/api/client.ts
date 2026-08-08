@@ -76,6 +76,10 @@ export interface GenerationPool {
   targetCount: number;
   enabled: boolean;
   readyCount: number;
+  /** Short label - "Generating", "Queued", "Full", "Paused", "Waiting", "Off". */
+  status: string;
+  /** The sentence explaining that label, shown as a tooltip. */
+  statusReason: string;
   updatedAtUtc: string;
 }
 
@@ -97,6 +101,10 @@ export interface GenerationPoolSettings {
 export interface GenerationPoolStatus {
   settings: GenerationPoolSettings;
   runningNow: boolean;
+  /** Why the generator is or isn't running right now. */
+  reason: string;
+  /** The pool currently having an entry written for it, if any. */
+  generatingPoolName: string | null;
   nowUtc: string;
 }
 

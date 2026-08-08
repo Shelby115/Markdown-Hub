@@ -40,6 +40,7 @@ builder.Services.AddScoped<VersionService>();
 builder.Services.AddScoped<HistorySettingsService>();
 builder.Services.AddScoped<IAiService, OllamaAiService>();
 builder.Services.AddScoped<AiTemplateService>();
+builder.Services.AddSingleton<PoolActivityTracker>();
 builder.Services.AddScoped<GenerationPoolService>();
 builder.Services.AddHostedService<HubFileWatcherService>();
 builder.Services.AddHostedService<ScheduledBackupHostedService>();

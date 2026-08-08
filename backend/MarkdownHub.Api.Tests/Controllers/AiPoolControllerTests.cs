@@ -42,9 +42,9 @@ public class AiPoolControllerTests : IDisposable
         };
         var currentUser = new CurrentUserService(_db, httpContextAccessor);
         var audit = new AuditLogService(_db, httpContextAccessor);
-        _pools = new GenerationPoolService(_db, _ai);
+        _pools = new GenerationPoolService(_db, _ai, new PoolActivityTracker());
         _sut = new AiPoolController(_pools, currentUser, audit);
-        _admin = new AiPoolAdminController(_pools, currentUser, audit);
+        _admin = new AiPoolAdminController(_pools, new PoolActivityTracker(), currentUser, audit);
     }
 
     public void Dispose() => _db.Dispose();

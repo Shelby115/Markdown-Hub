@@ -985,46 +985,181 @@ button:disabled { opacity: 0.6; cursor: default; }
 .admin-history-settings-form div { display: flex; gap: 0.5rem; }
 
 /* AI generation pools */
-.admin-pool-settings { margin-bottom: 1.5rem; }
-.admin-pool-enabled {
-  flex-direction: row !important;
-  align-items: center;
-  gap: 0.5rem !important;
-}
-.admin-pool-enabled input { width: auto !important; }
-.admin-pool-editor {
-  margin-top: 1.5rem;
-  padding: 1rem;
+.admin-pool-intro { max-width: 70ch; line-height: 1.55; }
+
+.admin-pool-panel {
+  margin: 1rem 0 1.5rem;
   border: 1px solid var(--content-border);
-  border-radius: 8px;
+  border-radius: 10px;
+  background: var(--content-bg-dim);
+  overflow: hidden;
 }
-.admin-pool-editor > div:last-of-type { display: flex; gap: 0.5rem; }
-.admin-pool-prompt {
-  display: block;
-  margin: 1rem 0;
-  font-size: 0.8rem;
+
+/* Generator status strip - the "what is it doing right now" line. */
+.admin-pool-generator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--content-bg);
+  border-bottom: 1px solid var(--content-border);
+}
+.admin-pool-generator-text { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
+.admin-pool-generator-text strong { font-size: 0.9rem; color: var(--content-heading); }
+.admin-pool-generator-text .muted { font-size: 0.78rem; line-height: 1.4; }
+
+.admin-pool-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.admin-pool-dot-ok { background: var(--content-accent); }
+.admin-pool-dot-warn { background: var(--content-warn-fg); }
+.admin-pool-dot-muted { background: var(--content-text-muted); }
+.admin-pool-dot-active { background: var(--content-accent); animation: pool-pulse 1.4s ease-in-out infinite; }
+
+@keyframes pool-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--content-accent) 55%, transparent); }
+  50% { opacity: 0.65; box-shadow: 0 0 0 5px color-mix(in srgb, var(--content-accent) 0%, transparent); }
+}
+
+.admin-pool-settings-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: flex-end;
+  padding: 1rem;
+}
+.admin-pool-settings-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
   color: var(--content-text-muted);
 }
-.admin-pool-prompt textarea {
-  display: block;
-  width: 100%;
-  margin-top: 0.3rem;
-  font-family: var(--font-mono, monospace);
+.admin-pool-settings-grid input {
+  font-family: inherit;
   font-size: 0.85rem;
-  padding: 0.5rem;
+  width: 8rem;
+  padding: 0.4rem 0.6rem;
   border-radius: 6px;
   border: 1px solid var(--content-border);
   background: var(--content-bg);
   color: var(--content-text);
+}
+.admin-pool-settings-actions { display: flex; gap: 0.5rem; }
+.admin-pool-toggle {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+  font-size: 0.85rem !important;
+  color: var(--content-text) !important;
+}
+.admin-pool-toggle input { width: auto !important; }
+.admin-pool-hint { padding: 0 1rem 1rem; margin: 0; font-size: 0.78rem; line-height: 1.5; max-width: 75ch; }
+
+/* Pool list */
+.admin-pool-table { margin-bottom: 0.75rem; }
+.admin-pool-name { font-weight: 500; color: var(--content-heading); }
+.admin-pool-row-selected { background: var(--content-bg-dim); }
+
+.admin-pool-progress { display: flex; align-items: center; gap: 0.6rem; }
+.admin-pool-progress-track {
+  width: 7rem;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--content-border);
+  overflow: hidden;
+}
+.admin-pool-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--content-accent);
+  transition: width 0.4s ease;
+}
+.admin-pool-progress-busy {
+  background: linear-gradient(
+    90deg,
+    var(--content-accent) 0%,
+    color-mix(in srgb, var(--content-accent) 45%, transparent) 50%,
+    var(--content-accent) 100%
+  );
+  background-size: 200% 100%;
+  animation: pool-shimmer 1.2s linear infinite;
+}
+@keyframes pool-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: 0 0; }
+}
+.admin-pool-progress-count {
+  font-size: 0.8rem;
+  color: var(--content-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-badge-muted { background: transparent; color: var(--content-text-muted); border: 1px solid var(--content-border); }
+.admin-badge-active { background: var(--content-accent); color: white; display: inline-flex; align-items: center; gap: 0.4rem; }
+.admin-pool-spinner {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, white 40%, transparent);
+  border-top-color: white;
+  animation: pool-spin 0.7s linear infinite;
+}
+@keyframes pool-spin { to { transform: rotate(360deg); } }
+
+.admin-pool-new { margin-top: 0.25rem; }
+
+/* Pool editor */
+.admin-pool-editor { background: var(--content-bg); }
+.admin-pool-editor-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--content-border);
+}
+.admin-pool-editor-header h3 { margin: 0; font-size: 0.95rem; color: var(--content-heading); }
+.admin-pool-editor .admin-pool-settings-grid { padding-bottom: 0; }
+.admin-pool-editor-actions { display: flex; gap: 0.5rem; padding: 0 1rem 1rem; }
+
+.admin-pool-prompt { display: block; padding: 1rem; }
+.admin-pool-prompt > span { display: block; font-size: 0.78rem; color: var(--content-text-muted); line-height: 1.5; }
+.admin-pool-prompt textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--content-border);
+  background: var(--content-bg-dim);
+  color: var(--content-text);
   resize: vertical;
 }
-.admin-pool-entries { margin-top: 1rem; }
+
+.admin-pool-entries { padding: 0 1rem 1rem; }
+.admin-pool-entries h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--content-text-muted);
+  margin: 0 0 0.25rem;
+}
 .admin-pool-entry {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 1rem;
-  padding: 0.5rem 0;
+  padding: 0.6rem 0;
   border-top: 1px solid var(--content-border);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.admin-pool-entry button { flex-shrink: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-pool-dot-active,
+  .admin-pool-progress-busy,
+  .admin-pool-spinner { animation: none; }
 }

@@ -1,158 +1,73 @@
-import { useEffect, useState } from "react";
-import {
-  GenerationPool,
-  GenerationPoolEntry,
-  GenerationPoolSettings,
-  GenerationPoolStatus,
-  api,
-  extractErrorMessage,
-} from "../api/client";
+import { generatorHeadline } from "./pools/poolPresentation";
+import { useGenerationPools } from "./pools/useGenerationPools";
 
-interface PoolForm {
-  name: string;
-  instructions: string;
-  targetCount: number;
-  enabled: boolean;
-}
-
-const BLANK_POOL: PoolForm = {
-  name: "",
-  instructions: "- Describe what one entry should be.\n- Max words: 40\n",
-  targetCount: 20,
-  enabled: false,
+/** Maps a server status label to its pill styling. Unknown labels fall back to neutral. */
+const STATUS_CLASS: Record<string, string> = {
+  Generating: "admin-badge-active",
+  Queued: "admin-badge",
+  Full: "admin-badge-ok",
+  Paused: "admin-badge-warn",
+  Waiting: "admin-badge-warn",
+  Off: "admin-badge-muted",
 };
 
-/** "new" means the form is creating a pool rather than editing an existing one. */
-type Selection = number | "new" | null;
-
 export function AiPoolAdmin() {
-  const [status, setStatus] = useState<GenerationPoolStatus | null>(null);
-  const [settingsForm, setSettingsForm] = useState<GenerationPoolSettings | null>(null);
-  const [pools, setPools] = useState<GenerationPool[] | null>(null);
-  const [selected, setSelected] = useState<Selection>(null);
-  const [poolForm, setPoolForm] = useState<PoolForm>(BLANK_POOL);
-  const [entries, setEntries] = useState<GenerationPoolEntry[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const {
+    status,
+    settingsForm,
+    setSettingsForm,
+    pools,
+    entries,
+    selected,
+    poolForm,
+    setPoolForm,
+    busy,
+    error,
+    notice,
+    selectPool,
+    startNewPool,
+    closeEditor,
+    savePool,
+    deletePool,
+    generateOne,
+    forget,
+    saveSettings,
+  } = useGenerationPools();
 
-  const loadStatus = async () => {
-    const loaded = await api.adminGetPoolSettings();
-    setStatus(loaded);
-    setSettingsForm(loaded.settings);
-  };
-
-  const loadPools = async () => setPools(await api.adminGetPools());
-
-  useEffect(() => {
-    void loadStatus().catch((err) => setError(extractErrorMessage(err, "Could not load generator settings.")));
-    void loadPools().catch((err) => setError(extractErrorMessage(err, "Could not load pools.")));
-  }, []);
-
-  /** Wraps an action with the shared busy/error handling every button here needs. */
-  const run = async (action: () => Promise<void>) => {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await action();
-    } catch (err) {
-      setError(extractErrorMessage(err, "That didn't work."));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveSettings = (settings: GenerationPoolSettings) =>
-    run(async () => {
-      const saved = await api.adminSetPoolSettings(settings);
-      setStatus(saved);
-      setSettingsForm(saved.settings);
-    });
-
-  const selectPool = (pool: GenerationPool) =>
-    run(async () => {
-      setSelected(pool.id);
-      setPoolForm({
-        name: pool.name,
-        instructions: pool.instructions,
-        targetCount: pool.targetCount,
-        enabled: pool.enabled,
-      });
-      setEntries(await api.adminGetPoolEntries(pool.id));
-    });
-
-  const startNewPool = () => {
-    setSelected("new");
-    setPoolForm(BLANK_POOL);
-    setEntries([]);
-    setError(null);
-    setNotice(null);
-  };
-
-  const savePool = () =>
-    run(async () => {
-      const saved =
-        selected === "new"
-          ? await api.adminCreatePool(poolForm)
-          : await api.adminUpdatePool(selected as number, poolForm);
-      await loadPools();
-      setSelected(saved.id);
-      setEntries(await api.adminGetPoolEntries(saved.id));
-    });
-
-  const deletePool = (pool: GenerationPool) =>
-    run(async () => {
-      if (!window.confirm(`Delete the “${pool.name}” pool and everything in it?`)) return;
-      await api.adminDeletePool(pool.id);
-      setSelected(null);
-      setEntries([]);
-      await loadPools();
-    });
-
-  const generateOne = (poolId: number) =>
-    run(async () => {
-      const entry = await api.adminGeneratePoolEntry(poolId);
-      setEntries((prev) => [entry, ...prev]);
-      setNotice("Added one entry.");
-      await loadPools();
-    });
-
-  const forget = (entryId: number) =>
-    run(async () => {
-      await api.aiPoolForgetEntry(entryId);
-      setEntries((prev) => prev.filter((e) => e.id !== entryId));
-      await loadPools();
-    });
-
-  const generatorState = !status
-    ? "…"
-    : status.settings.paused
-      ? "Paused"
-      : status.runningNow
-        ? "Running"
-        : "Idle - outside the allowed window";
+  const headline = generatorHeadline(status);
 
   return (
     <section className="admin-section">
       <h2>AI generation pools</h2>
-      <p className="muted">
+      <p className="muted admin-pool-intro">
         A pool pre-generates content for one kind of template placeholder in the background, so filling it is
         instant instead of waiting on the model. A template opts in by adding <code>- Pool: Name</code> to that
-        placeholder in its <code>ai-template</code> block; the pool's prompt below then replaces the template's own
-        rules for it. Pool entries are written without knowledge of the rest of the page, so pools suit
-        self-contained items (an interactible, an NPC name) rather than sections that must match their context.
+        placeholder in its <code>ai-template</code> block; the pool's prompt then replaces the template's own rules
+        for it. Pool entries are written without knowledge of the rest of the page, so pools suit self-contained
+        items (an interactible, an NPC name) rather than sections that must match their context.
       </p>
 
       {error && <div className="banner banner-error">{error}</div>}
       {notice && <div className="banner">{notice}</div>}
 
       {settingsForm && status && (
-        <div className="admin-pool-settings">
-          <p className="muted">
-            Background generator: <strong>{generatorState}</strong>. Server time is {status.nowUtc} UTC.
-          </p>
-          <div className="admin-history-settings-form">
+        <div className="admin-pool-panel">
+          <div className="admin-pool-generator" title={status.reason}>
+            <span className={`admin-pool-dot admin-pool-dot-${headline.tone}`} aria-hidden="true" />
+            <div className="admin-pool-generator-text">
+              <strong>{headline.text}</strong>
+              <span className="muted">{status.reason}</span>
+            </div>
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => saveSettings({ ...settingsForm, paused: !status.settings.paused })}
+            >
+              {status.settings.paused ? "Resume" : "Pause"}
+            </button>
+          </div>
+
+          <div className="admin-pool-settings-grid">
             <label>
               Allowed from (UTC)
               <input
@@ -187,81 +102,98 @@ export function AiPoolAdmin() {
                 onChange={(e) => setSettingsForm({ ...settingsForm, usedEntryRetentionDays: Number(e.target.value) })}
               />
             </label>
-            <div>
-              <button disabled={busy} onClick={() => void saveSettings(settingsForm)}>
-                Save generator settings
-              </button>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => void saveSettings({ ...settingsForm, paused: !status.settings.paused })}
-              >
-                {status.settings.paused ? "Resume generating" : "Pause generating"}
+            <div className="admin-pool-settings-actions">
+              <button disabled={busy} onClick={() => saveSettings(settingsForm)}>
+                Save schedule
               </button>
             </div>
           </div>
-          <p className="muted">
-            Leave both times blank to allow generation at any hour. Used entries are kept only so the same text
-            isn't generated twice; forgotten entries are kept forever, which is what makes forgetting permanent.
+          <p className="muted admin-pool-hint">
+            Server time is {status.nowUtc} UTC. Leave both times blank to allow generation at any hour; an end
+            earlier than the start wraps past midnight. Used entries are kept only so the same text isn't generated
+            twice - forgotten entries are kept forever, which is what makes forgetting permanent.
           </p>
         </div>
       )}
 
       {!pools ? (
         <p className="muted">Loading…</p>
+      ) : pools.length === 0 ? (
+        <p className="muted">No pools yet. Create one to start pre-generating template content.</p>
       ) : (
-        <>
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Pool</th>
-                <th>Ready</th>
-                <th>Generating</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {pools.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="muted">
-                    No pools yet.
-                  </td>
-                </tr>
-              )}
-              {pools.map((pool) => (
-                <tr key={pool.id}>
-                  <td>{pool.name}</td>
-                  <td>
-                    {pool.readyCount} / {pool.targetCount}
-                  </td>
-                  <td>{pool.enabled ? "Yes" : "No"}</td>
-                  <td>
-                    <button className="secondary" disabled={busy} onClick={() => void selectPool(pool)}>
+        <table className="admin-table admin-pool-table">
+          <thead>
+            <tr>
+              <th>Pool</th>
+              <th>Ready</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {pools.map((pool) => (
+              <tr key={pool.id} className={selected === pool.id ? "admin-pool-row-selected" : undefined}>
+                <td className="admin-pool-name">{pool.name}</td>
+                <td>
+                  <div className="admin-pool-progress" title={`${pool.readyCount} of ${pool.targetCount} ready`}>
+                    <div className="admin-pool-progress-track">
+                      <div
+                        className={`admin-pool-progress-fill${pool.status === "Generating" ? " admin-pool-progress-busy" : ""}`}
+                        style={{ width: `${pool.targetCount === 0 ? 0 : Math.min(100, (pool.readyCount / pool.targetCount) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="admin-pool-progress-count">
+                      {pool.readyCount} / {pool.targetCount}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  {/* The reason is the whole point - "Generating: No" with no explanation was the complaint. */}
+                  <span className={`admin-badge ${STATUS_CLASS[pool.status] ?? "admin-badge"}`} title={pool.statusReason}>
+                    {pool.status === "Generating" && <span className="admin-pool-spinner" aria-hidden="true" />}
+                    {pool.status}
+                  </span>
+                </td>
+                <td>
+                  <div className="admin-actions">
+                    <button className="secondary" disabled={busy} onClick={() => selectPool(pool)}>
                       Edit
                     </button>
-                    <button className="secondary" disabled={busy} onClick={() => void deletePool(pool)}>
+                    <button className="secondary" disabled={busy} onClick={() => deletePool(pool)}>
                       Delete
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
-          <button className="secondary" disabled={busy} onClick={startNewPool}>
-            New pool
-          </button>
-        </>
+      {selected === null && (
+        <button className="secondary admin-pool-new" disabled={busy} onClick={startNewPool}>
+          New pool
+        </button>
       )}
 
       {selected !== null && (
-        <div className="admin-pool-editor">
-          <h3>{selected === "new" ? "New pool" : `Pool “${poolForm.name}”`}</h3>
-          <div className="admin-history-settings-form">
+        <div className="admin-pool-panel admin-pool-editor">
+          <div className="admin-pool-editor-header">
+            <h3>{selected === "new" ? "New pool" : `Pool “${poolForm.name}”`}</h3>
+            <button className="link-button" onClick={closeEditor}>
+              Close
+            </button>
+          </div>
+
+          <div className="admin-pool-settings-grid">
             {selected === "new" && (
               <label>
-                Name (must match the template's <code>Pool:</code> line)
-                <input value={poolForm.name} onChange={(e) => setPoolForm({ ...poolForm, name: e.target.value })} />
+                Name
+                <input
+                  value={poolForm.name}
+                  placeholder="Interactible"
+                  onChange={(e) => setPoolForm({ ...poolForm, name: e.target.value })}
+                />
               </label>
             )}
             <label>
@@ -273,7 +205,7 @@ export function AiPoolAdmin() {
                 onChange={(e) => setPoolForm({ ...poolForm, targetCount: Number(e.target.value) })}
               />
             </label>
-            <label className="admin-pool-enabled">
+            <label className="admin-pool-toggle">
               <input
                 type="checkbox"
                 checked={poolForm.enabled}
@@ -284,8 +216,10 @@ export function AiPoolAdmin() {
           </div>
 
           <label className="admin-pool-prompt">
-            Prompt - same bullet rules a template's <code>ai-template</code> block uses, including{" "}
-            <code>Format:</code>, <code>Example:</code>, <code>Max words:</code>, and <code>Max sentences:</code>.
+            <span>
+              Prompt - the same bullet rules a template's <code>ai-template</code> block uses, including{" "}
+              <code>Format:</code>, <code>Example:</code>, <code>Max words:</code>, and <code>Max sentences:</code>.
+            </span>
             <textarea
               aria-label="Pool prompt"
               rows={8}
@@ -294,18 +228,15 @@ export function AiPoolAdmin() {
             />
           </label>
 
-          <div>
-            <button disabled={busy || !poolForm.name.trim()} onClick={() => void savePool()}>
+          <div className="admin-pool-editor-actions">
+            <button disabled={busy || !poolForm.name.trim()} onClick={() => savePool()}>
               Save pool
             </button>
             {selected !== "new" && (
-              <button className="secondary" disabled={busy} onClick={() => void generateOne(selected)}>
+              <button className="secondary" disabled={busy} onClick={() => generateOne(selected)}>
                 Generate one now
               </button>
             )}
-            <button className="secondary" disabled={busy} onClick={() => setSelected(null)}>
-              Close
-            </button>
           </div>
 
           {selected !== "new" && (
@@ -321,7 +252,7 @@ export function AiPoolAdmin() {
                       className="secondary"
                       disabled={busy}
                       title="Forget this entry - never show or regenerate it"
-                      onClick={() => void forget(entry.id)}
+                      onClick={() => forget(entry.id)}
                     >
                       Forget
                     </button>

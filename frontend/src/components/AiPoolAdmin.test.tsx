@@ -40,6 +40,8 @@ const pool = {
   targetCount: 20,
   enabled: true,
   readyCount: 3,
+  status: "Waiting",
+  statusReason: "17 more to generate, but generation is only allowed between 22:00-06:00 UTC. It is now 14:30 UTC.",
   updatedAtUtc: "2026-08-07T10:00:00Z",
 };
 
@@ -51,7 +53,13 @@ const settings = {
   usedEntryRetentionDays: 90,
 };
 
-const status = { settings, runningNow: false, nowUtc: "14:30" };
+const status = {
+  settings,
+  runningNow: false,
+  reason: "Generation is only allowed between 22:00-06:00 UTC, and it is now 14:30 UTC.",
+  generatingPoolName: null as string | null,
+  nowUtc: "14:30",
+};
 
 describe("AiPoolAdmin", () => {
   beforeEach(() => {
@@ -65,11 +73,11 @@ describe("AiPoolAdmin", () => {
     mocks.forgetEntry.mockReset().mockResolvedValue(undefined);
   });
 
-  it("reports the generator as idle when it's outside the allowed window", async () => {
+  it("says why the generator isn't running rather than just that it isn't", async () => {
     render(<AiPoolAdmin />);
 
-    expect(await screen.findByText(/outside the allowed window/)).toBeInTheDocument();
-    expect(screen.getByText(/14:30 UTC/)).toBeInTheDocument();
+    expect(await screen.findByText("Outside the allowed window")).toBeInTheDocument();
+    expect(screen.getByText(/only allowed between 22:00-06:00 UTC/)).toBeInTheDocument();
   });
 
   it("shows each pool's ready count against its target", async () => {
@@ -78,14 +86,45 @@ describe("AiPoolAdmin", () => {
     expect(await screen.findByText("3 / 20")).toBeInTheDocument();
   });
 
+  it("a pool's status badge carries the explanation as a tooltip", async () => {
+    render(<AiPoolAdmin />);
+
+    const badge = await screen.findByTitle(/17 more to generate/);
+    expect(badge).toHaveTextContent("Waiting");
+  });
+
+  it("names the pool being written while the generator is working", async () => {
+    mocks.getSettings.mockResolvedValue({ ...status, generatingPoolName: "Interactible", runningNow: true });
+    mocks.getPools.mockResolvedValue([{ ...pool, status: "Generating", statusReason: "Writing a new entry right now." }]);
+    render(<AiPoolAdmin />);
+
+    expect(await screen.findByText(/Writing an entry for “Interactible”/)).toBeInTheDocument();
+    expect(await screen.findByTitle("Writing a new entry right now.")).toHaveTextContent("Generating");
+  });
+
+  it("picks up entries the background generator added, without the user doing anything", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<AiPoolAdmin />);
+      expect(await screen.findByText("3 / 20")).toBeInTheDocument();
+
+      mocks.getPools.mockResolvedValue([{ ...pool, readyCount: 4 }]);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      await waitFor(() => expect(screen.getByText("4 / 20")).toBeInTheDocument());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("pausing sends the current settings with paused flipped", async () => {
     const user = userEvent.setup();
     render(<AiPoolAdmin />);
 
-    await user.click(await screen.findByText("Pause generating"));
+    await user.click(await screen.findByText("Pause"));
 
     await waitFor(() => expect(mocks.setSettings).toHaveBeenCalledWith({ ...settings, paused: true }));
-    expect(await screen.findByText("Resume generating")).toBeInTheDocument();
+    expect(await screen.findByText("Resume")).toBeInTheDocument();
   });
 
   it("editing a pool loads its prompt and ready entries, and saves changes", async () => {
