@@ -123,8 +123,13 @@ button:disabled { opacity: 0.6; cursor: default; }
   display: flex;
   flex-direction: column;
   padding: 1rem;
-  overflow-y: auto;
+  overflow: hidden;
 }
+
+/* Header, search, and footer stay put; only the file/folder list scrolls. */
+.sidebar-header,
+.sidebar .search-bar,
+.sidebar-footer { flex-shrink: 0; }
 
 .sidebar-header {
   display: flex;
@@ -208,7 +213,21 @@ button:disabled { opacity: 0.6; cursor: default; }
 .search-result-snippet { font-size: 0.75rem; color: #a9b2c0; margin-top: 2px; }
 .search-result-snippet mark { background: var(--moss-bright); color: var(--ink-950); padding: 0 2px; border-radius: 2px; }
 
+.file-tree {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file-tree > .tree-level,
+.file-tree > .muted {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .file-tree-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -277,7 +296,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .tree-menu button:hover { background: var(--ink-800); }
 .tree-menu-danger { color: #e08a75; }
 
-.tree-create-form { padding: 0.2rem 0.4rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.tree-create-form { padding: 0.2rem 0.4rem; display: flex; flex-direction: column; gap: 0.2rem; flex-shrink: 0; }
 
 .tree-inline-input {
   width: 100%;
@@ -289,7 +308,7 @@ button:disabled { opacity: 0.6; cursor: default; }
   color: var(--paper);
 }
 
-.tree-error { font-size: 0.75rem; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; }
+.tree-error { font-size: 0.75rem; padding: 0.4rem 0.6rem; margin-bottom: 0.5rem; flex-shrink: 0; }
 
 .tree-template-select {
   width: 100%;
