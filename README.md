@@ -335,13 +335,20 @@ Encounter:
 ```
 ````
 
-Mark the page as a template (page menu → "Mark as template"), then create a page from it
-the usual way — the generation panel opens instead of the fill-in-the-blank prompt.
+Tick **Template** in the editor toolbar, then start a generation either way:
 
-- **Generate all** fills every placeholder, one at a time, each one aware of what came before.
+- From the template page itself — a **✨ Generate** button appears in the toolbar next to the
+  Template checkbox. You choose where the finished page is saved.
+- From the file tree — `⋮` → **New page from template**, exactly like an ordinary template.
+  The generation panel opens instead of the fill-in-the-blank prompt.
+
+The panel generates every section immediately when it opens, one at a time, each one aware of
+what came before. From there:
+
 - **Reroll** (🎲) regenerates a single section; **Improve** (✨) revises it while keeping its
   subject; **Lock** (🔒) freezes it, and locked sections become context for everything
   generated afterward. Each section is also editable by hand.
+- **Regenerate all** re-runs every unlocked section.
 - A repeated placeholder becomes that many independent sections — four `{{Interactible}}`
   lines always produce exactly four interactibles, since the count comes from your template
   rather than from the model.
@@ -361,6 +368,7 @@ exactly as it always has.
 Generation is one model call per placeholder, so a large template takes a while on a local
 model — `Ai:Ollama:TimeoutSeconds` applies to each section, not the whole document. Progress
 appears section by section and can be stopped partway; whatever generated already is kept.
+Closing the panel discards the session, so save before you walk away.
 
 ## Updating
 

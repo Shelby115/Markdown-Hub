@@ -5,8 +5,9 @@ import { Table } from "@lezer/markdown";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, PageContent } from "../api/client";
+import { AiTemplateParseResult, api, PageContent } from "../api/client";
 import { toPageUrl } from "../pageUrl";
+import { AiTemplatePanel } from "./AiTemplatePanel";
 import { liveMarkdownPreview } from "./liveMarkdown";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
 
@@ -26,6 +27,9 @@ export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: Page
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [generateBusy, setGenerateBusy] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<AiTemplateParseResult | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
 
   // Refs (rather than state) for values the debounce/flush logic needs without
@@ -139,6 +143,26 @@ export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: Page
     }
   };
 
+  // The backend generates from the template as it exists *on disk*, so flush any pending autosave
+  // before parsing - otherwise rules the user just typed wouldn't be used.
+  const startGenerating = async () => {
+    setGenerateBusy(true);
+    setGenerateError(null);
+    try {
+      await doSave();
+      const parsed = await api.aiTemplateParse(page.relativePath);
+      if (parsed.slots.length === 0) {
+        setGenerateError("No AI placeholders found. Each {{Placeholder}} needs an entry in the ```ai-template block.");
+        return;
+      }
+      setGenerating(parsed);
+    } catch {
+      setGenerateError("Couldn't read this template.");
+    } finally {
+      setGenerateBusy(false);
+    }
+  };
+
   const onImagePaste = useCallback(
     async (file: File, view: EditorView) => {
       const folder = page.relativePath.split("/").slice(0, -1).join("/");
@@ -189,6 +213,11 @@ export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: Page
             <button className="secondary" onClick={() => setHistoryOpen(true)}>
               History
             </button>
+            {isTemplate && draft.includes("```ai-template") && (
+              <button className="secondary" disabled={generateBusy} onClick={() => void startGenerating()}>
+                ✨ Generate
+              </button>
+            )}
             <button
               className={`secondary template-toggle-button${isPublished ? " template-toggle-active" : ""}`}
               disabled={publishBusy}
@@ -220,6 +249,8 @@ export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: Page
           </div>
         </div>
       </div>
+
+      {generateError && <div className="banner banner-error">{generateError}</div>}
 
       {saveState === "conflict" && (
         <div className="banner banner-warning">
@@ -254,6 +285,25 @@ export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: Page
           relativePath={page.relativePath}
           onClose={() => setHistoryOpen(false)}
           onRestored={() => void reloadLatest()}
+        />
+      )}
+
+      {generating && (
+        <AiTemplatePanel
+          templatePath={page.relativePath}
+          initialPagePath={currentFolder ? `${currentFolder}/${page.pageName} 1` : `${page.pageName} 1`}
+          pathEditable
+          parsed={generating}
+          onCancel={() => setGenerating(null)}
+          onSave={async (content, pagePath) => {
+            setGenerating(null);
+            try {
+              const created = await api.savePage(`${pagePath}.md`, content);
+              navigate(toPageUrl(created.relativePath));
+            } catch {
+              setGenerateError(`Couldn't create "${pagePath}" - a page with that name may already exist.`);
+            }
+          }}
         />
       )}
     </div>

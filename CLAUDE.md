@@ -323,11 +323,21 @@ Design doc: `docs/AI Generation Template Feature Design.md`. Implementation plan
   every call, so a client can name a slot but never supply structure or instructions. Slot
   values and locks live in `AiTemplatePanel`'s React state; closing the panel discards them.
   "Generate all" is N sequential client calls, so a failure partway leaves earlier slots intact.
-* [x] **Placeholders without an instruction entry stay ordinary fill-in variables**, collected
-  by the existing `TemplateVariablesModal` before generation starts. A template with no
-  instruction block is unaffected.
-* Deliberately not done: session persistence across closing the panel, parallel slot generation,
-  and an editor-toolbar entry point for generating into an already-open page.
+* [x] **Placeholders without an instruction entry stay ordinary fill-in variables**, collected by
+  `AiTemplatePanel` itself alongside the generated sections (not by a separate pre-step), so both
+  entry points share one flow. A template with no instruction block is unaffected and still uses
+  `TemplateVariablesModal`.
+* [x] **Two entry points, and generation starts on its own.** Besides the file tree's "New page
+  from template", a `✨ Generate` button appears in the editor toolbar for any page that is
+  marked as a template and contains an ` ```ai-template ` block; it flushes the pending autosave
+  first (the backend generates from what's on disk) and lets the user pick the target path. The
+  panel runs its first full pass automatically on open - opening it *is* the request to generate -
+  and the button afterward is "Regenerate all".
+* [x] **The template dropdown refetches when it's about to be used** (opening a folder's `⋮` menu
+  or the create-file row), not just at mount: marking a page as a template happens in the editor,
+  which has no channel to the tree.
+* Deliberately not done: session persistence across closing the panel, and parallel slot
+  generation.
 
 ### Dice Roller Design
 

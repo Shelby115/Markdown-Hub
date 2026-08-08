@@ -23,22 +23,27 @@ interface SlotState {
 
 export function AiTemplatePanel({
   templatePath,
-  pageName,
+  initialPagePath,
+  pathEditable = false,
   parsed,
-  variables,
   onCancel,
   onSave,
 }: {
   templatePath: string;
-  pageName: string;
+  /** Where the finished page will be saved - shown as an editable field when pathEditable. */
+  initialPagePath: string;
+  pathEditable?: boolean;
   parsed: AiTemplateParseResult;
-  variables: Record<string, string>;
   onCancel: () => void;
-  onSave: (content: string) => void;
+  onSave: (content: string, pagePath: string) => void;
 }) {
   const [slots, setSlots] = useState<SlotState[]>(() =>
     parsed.slots.map((s) => ({ ...s, content: "", locked: false, busy: false, warnings: [], error: null }))
   );
+  const [variables, setVariables] = useState<Record<string, string>>(() =>
+    Object.fromEntries(parsed.fillInVariables.map((v) => [v, ""]))
+  );
+  const [pagePath, setPagePath] = useState(initialPagePath);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
 
@@ -46,13 +51,7 @@ export function AiTemplatePanel({
   // the loop reads from a ref rather than from state it can't see updated until the next render.
   const slotsRef = useRef(slots);
   const stopRef = useRef(false);
-
-  useEffect(() => {
-    api
-      .getAiAssistantStatus()
-      .then((status) => setAiAvailable(status.available))
-      .catch(() => setAiAvailable(false));
-  }, []);
+  const autoStartedRef = useRef(false);
 
   const writeSlots = (next: SlotState[]) => {
     slotsRef.current = next;
@@ -92,15 +91,32 @@ export function AiTemplatePanel({
     setGeneratingAll(false);
   };
 
+  // Opening the panel is itself the request to generate - there's nothing useful to look at
+  // until the first pass has run, so don't make the user ask for it a second time.
+  useEffect(() => {
+    api
+      .getAiAssistantStatus()
+      .then((status) => {
+        setAiAvailable(status.available);
+        if (status.available && !autoStartedRef.current) {
+          autoStartedRef.current = true;
+          void generateMany(slotsRef.current.map((s) => s.id));
+        }
+      })
+      .catch(() => setAiAvailable(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const busy = generatingAll || slots.some((s) => s.busy);
   const groups = groupSlots(parsed.slots);
   const contents = Object.fromEntries(slots.map((s) => [s.id, s.content]));
   const hasContent = slots.some((s) => s.content.trim().length > 0);
+  const savePath = pagePath.trim();
 
   return (
     <div className="modal-overlay" onClick={busy ? undefined : onCancel}>
       <div className="modal ai-template-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>Generate “{pageName}”</h2>
+        <h2>Generate “{savePath.split("/").pop() || "new page"}”</h2>
 
         {aiAvailable === false ? (
           <p className="muted">
@@ -109,6 +125,20 @@ export function AiTemplatePanel({
           </p>
         ) : (
           <div className="ai-template-body">
+            {parsed.fillInVariables.length > 0 && (
+              <section className="modal-fields">
+                {parsed.fillInVariables.map((name) => (
+                  <label key={name} className="modal-field">
+                    <span>{name}</span>
+                    <input
+                      value={variables[name]}
+                      onChange={(e) => setVariables((prev) => ({ ...prev, [name]: e.target.value }))}
+                    />
+                  </label>
+                ))}
+              </section>
+            )}
+
             {groups.map((group) => (
               <section key={group.name} className="ai-template-group">
                 {/* A single-slot group would just repeat its own card's title. */}
@@ -185,6 +215,13 @@ export function AiTemplatePanel({
                 })}
               </section>
             ))}
+
+            {pathEditable && (
+              <label className="modal-field ai-template-path">
+                <span>Save as</span>
+                <input value={pagePath} onChange={(e) => setPagePath(e.target.value)} placeholder="Folder/Page name" />
+              </label>
+            )}
           </div>
         )}
 
@@ -202,10 +239,13 @@ export function AiTemplatePanel({
               disabled={busy || aiAvailable === false || slots.length === 0}
               onClick={() => void generateMany(slots.map((s) => s.id))}
             >
-              Generate all
+              Regenerate all
             </button>
           )}
-          <button disabled={busy || !hasContent} onClick={() => onSave(assembleDocument(parsed.elements, contents, variables))}>
+          <button
+            disabled={busy || !hasContent || savePath.length === 0}
+            onClick={() => onSave(assembleDocument(parsed.elements, contents, variables), savePath)}
+          >
             Save as page
           </button>
         </div>
