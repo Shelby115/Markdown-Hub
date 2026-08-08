@@ -87,16 +87,28 @@ Then start it:
 docker compose up -d --build
 ```
 
-Both images build from source in this repository; there are no prebuilt images to pull.
-The first build takes a few minutes.
+This builds both images from source; the first build takes a few minutes.
+
+### Or run the prebuilt images
+
+If you'd rather not build anything, `docker-compose.ghcr.yml` pulls published images from
+GitHub Container Registry. You only need that file and a `.env` — no source checkout:
+
+```bash
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+Same two settings (`HUB_HOST_PATH`, `ADMIN_PASSWORD`); everything else has a working default.
+This setup doesn't publish the API port at all — the frontend proxies to it over the Compose
+network, so only `FRONTEND_PORT` is reachable from the host.
 
 ## Accessing it
 
 | | URL |
 |---|---|
 | Web app | `http://localhost:8086` |
-| API | `http://localhost:8085` |
-| Health check | `http://localhost:8085/health` |
+| API | `http://localhost:8085` (source build only) |
+| Health check | `http://localhost:8086/health` |
 
 Sign in with the `ADMIN_USERNAME` (default `admin`) and `ADMIN_PASSWORD` you set.
 

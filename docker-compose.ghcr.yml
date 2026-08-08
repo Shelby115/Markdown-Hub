@@ -1,0 +1,58 @@
+# Runs Markdown Hub from the prebuilt images on GitHub Container Registry - no source checkout
+# or build required. Only this file and a .env are needed.
+#
+#   docker compose -f docker-compose.ghcr.yml up -d
+#
+# Set HUB_HOST_PATH (where your Markdown lives) and ADMIN_PASSWORD in .env. Everything else has
+# a working default. See .env.example.
+#
+# The api service is named "api" on purpose: the frontend image defaults to proxying at
+# api:8080, so API_HOST/API_UPSTREAM_PORT never need setting here.
+
+services:
+  api:
+    image: ghcr.io/shelby115/markdown-hub-api:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Bootstraps the first administrator, on an empty database only. Once the account exists
+      # the database is authoritative and changing these has no effect.
+      Admin__Username: ${ADMIN_USERNAME:-admin}
+      Admin__Password: ${ADMIN_PASSWORD:-}
+      Admin__PasswordFile: ${ADMIN_PASSWORD_FILE:-}
+      Sessions__LifetimeHours: ${SESSION_LIFETIME_HOURS:-168}
+      # Needed once you serve this on a real domain, so OIDC/OAuth2 callback URLs and CORS use
+      # the public origin rather than what the container sees behind the proxy.
+      Auth__PublicApiOrigin: ${FRONTEND_ORIGIN:-}
+      Cors__AllowedOrigins__0: http://localhost:${FRONTEND_PORT:-8086}
+      Cors__AllowedOrigins__1: ${FRONTEND_ORIGIN:-}
+      # Optional local Ollama for the AI assistant. The app runs fine without it.
+      Ai__Ollama__BaseUrl: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      Ai__Ollama__Model: ${OLLAMA_MODEL:-gpt-oss:20b}
+    volumes:
+      # Your Markdown. The only path you must point somewhere real.
+      - ${HUB_HOST_PATH:-./data/markdown}:/data/markdown
+      - ./data/db:/data/db
+      - ./data/backups:/data/backups
+      # Data Protection key ring. Must persist, or stored provider secrets stop decrypting.
+      - ./data/keys:/data/keys
+    # Not published. The frontend reaches this over the Compose network; nothing else needs to.
+    expose:
+      - "8080"
+
+  frontend:
+    image: ghcr.io/shelby115/markdown-hub-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8086}:80"
+    depends_on:
+      - api
+
+# If the API container can't reach a hostname your browser can (an identity provider on your own
+# LAN behind a router without NAT hairpin, or host.docker.internal on plain Docker Engine), add
+# a docker-compose.override.yml next to this file:
+#
+# services:
+#   api:
+#     extra_hosts:
+#       - "your-idp.example.com:host-gateway"
