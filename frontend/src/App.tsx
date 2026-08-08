@@ -56,6 +56,7 @@ export default function App() {
   // Bumped after the assistant panel adds content to the currently open page, forcing PageView
   // to remount and refetch fresh content rather than showing stale in-memory state.
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [treeNonce, setTreeNonce] = useState(0);
   const navigate = useNavigate();
   const openPage = (relativePath: string) => navigate(toPageUrl(relativePath));
 
@@ -238,6 +239,7 @@ export default function App() {
           }}
           defaultFolderPath={defaultFolderPath}
           onDefaultFolderChanged={setDefaultFolderPath}
+          reloadNonce={treeNonce}
         />
         <div className="sidebar-footer">
           <div className="theme-toggle">
@@ -283,7 +285,10 @@ export default function App() {
       <main className="content">
         <Routes>
           <Route path="/" element={<Welcome username={username} />} />
-          <Route path="/page/*" element={<PageView key={reloadNonce} />} />
+          <Route
+            path="/page/*"
+            element={<PageView key={reloadNonce} onPageCreated={() => setTreeNonce((n) => n + 1)} />}
+          />
           <Route path="/account" element={<Account />} />
           {isAdmin && <Route path="/admin" element={<Admin />} />}
           {isAdmin && <Route path="/admin/activity" element={<ActivityLogPage />} />}

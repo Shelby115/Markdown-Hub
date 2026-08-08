@@ -85,12 +85,16 @@ export function FileTree({
   onActiveDeleted,
   defaultFolderPath,
   onDefaultFolderChanged,
+  reloadNonce,
 }: {
   onOpen: (relativePath: string) => void;
   activePath: string | null;
   onActiveDeleted: () => void;
   defaultFolderPath: string | null;
   onDefaultFolderChanged: (folderPath: string | null) => void;
+  /** Bumped by the app when a page is created outside the tree (e.g. generated from a template
+   * in the editor), which the tree has no other way to hear about. */
+  reloadNonce?: number;
 }) {
   const [nodes, setNodes] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +123,7 @@ export function FileTree({
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [reloadNonce]);
 
   // Refetched whenever the user is about to pick one, not just at mount: marking a page as a
   // template happens over in the editor, which has no way to tell the tree about it.

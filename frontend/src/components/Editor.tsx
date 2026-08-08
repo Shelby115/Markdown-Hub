@@ -14,7 +14,17 @@ import { VersionHistoryPanel } from "./VersionHistoryPanel";
 type SaveState = "idle" | "saving" | "saved" | "conflict" | "error";
 const AUTOSAVE_DELAY_MS = 2000;
 
-export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: PageContent) => void }) {
+export function Editor({
+  page,
+  onSaved,
+  onPageCreated,
+}: {
+  page: PageContent;
+  onSaved: (p: PageContent) => void;
+  /** A page created from here (generating from a template) exists only on the server until the
+   * file tree is told to reload. */
+  onPageCreated: () => void;
+}) {
   const navigate = useNavigate();
   const [draft, setDraft] = useState(page.content);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -299,6 +309,7 @@ export function Editor({ page, onSaved }: { page: PageContent; onSaved: (p: Page
             setGenerating(null);
             try {
               const created = await api.savePage(`${pagePath}.md`, content);
+              onPageCreated();
               navigate(toPageUrl(created.relativePath));
             } catch {
               setGenerateError(`Couldn't create "${pagePath}" - a page with that name may already exist.`);

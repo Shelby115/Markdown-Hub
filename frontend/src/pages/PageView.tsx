@@ -4,7 +4,7 @@ import { DeletedDocument, PageContent, api, extractErrorMessage } from "../api/c
 import { Editor } from "../components/Editor";
 import { Backlinks } from "../components/Backlinks";
 
-export function PageView() {
+export function PageView({ onPageCreated }: { onPageCreated: () => void }) {
   const params = useParams();
   // react-router's "*" splat param carries the full remaining path, e.g. "Projects/Ideas".
   const relativePath = (params["*"] ?? "") + ".md";
@@ -86,7 +86,7 @@ export function PageView() {
 
   return (
     <div className="page-view">
-      <Editor key={page.relativePath} page={page} onSaved={handleSaved} />
+      <Editor key={page.relativePath} page={page} onSaved={handleSaved} onPageCreated={onPageCreated} />
       <Backlinks relativePath={page.relativePath} />
     </div>
   );
