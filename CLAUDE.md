@@ -194,6 +194,10 @@ run the API separately, e.g. `dotnet run` from `backend/MarkdownHub.Api`).
   `docs/AI Generation Pools Design.md`): named libraries of pre-generated placeholder content,
   filled by a background service on an admin-configurable schedule, so a placeholder that opts
   in with `- Pool: Name` is served from the database instead of waiting on Ollama.
+- A dedicated **AI page** (`/ai-lab`, `pages/AiLab.tsx`, admin-only, linked in the sidebar next
+  to Admin) is now the home for everything AI: the app-wide Ollama model override and the
+  generation pools. Both used to sit mid-way down the Admin page between user management and
+  folder permissions, which is not where anyone looked for them.
 - Version history and activity log (see the Version History and Activity Log Design section
   and `Activity-And-History.md`): coalesced auto-versioning with a GitHub-style diff/compare/
   restore UI per document, soft-deleted-document recovery, and an admin-only, filterable/
@@ -272,7 +276,7 @@ Nothing outstanding - the last remaining item (AI generation pools) shipped; see
   `/api/ai/edit` endpoint and `AiController` are still present on the backend but currently
   unused by the frontend.
 * [x] **AI model selection.** Admins can pick which installed Ollama model the whole app uses
-  from the Admin page's "AI model" section - a text input with autocomplete suggestions pulled
+  from the AI page's "Model" section - a text input with autocomplete suggestions pulled
   live from Ollama's `/api/tags` (falls back to manual entry if Ollama's unreachable). The
   choice is a single app-wide setting (`AppSettings` table, key `Ai.Ollama.Model`), applies to
   every user immediately with no restart, and takes precedence over the `OLLAMA_MODEL`

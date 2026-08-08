@@ -72,13 +72,14 @@ public class PoolFillStatusTests
     }
 
     [Fact]
-    public void EnabledAndAllowed_IsQueuedWithTheInterval()
+    public void EnabledAndAllowed_IsQueuedWithTheOutstandingCount()
     {
         var status = For(Pool(target: 20), ready: 3, Settings());
 
         Assert.Equal("Queued", status.Label);
         Assert.Contains("17 more to generate", status.Reason);
-        Assert.Contains("within 60 seconds", status.Reason);
+        // The wait itself is shown as a live countdown dial, so the text doesn't quote the interval.
+        Assert.DoesNotContain("60 seconds", status.Reason);
     }
 
     [Fact]

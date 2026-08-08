@@ -1,21 +1,30 @@
 import { GenerationPoolsController } from "./useGenerationPools";
+import { NextCheckDial } from "./NextCheckDial";
 import { generatorHeadline, percentFull, toneOf } from "./poolPresentation";
 
 /**
- * Variant C - "settings app". A list rail on the left, the selected pool filling the right pane.
- * Nothing appears or disappears as you click around, so the page never jumps; the trade-off is
- * that you only ever see one pool's prompt and entries at a time.
+ * Generation pools: a list rail of pools on the left, the selected one filling the pane on the
+ * right. Every pool's status and fill level is readable from the rail without selecting it, so
+ * "why isn't this one filling?" never needs a click to answer.
  */
-export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
+export function GenerationPools({ c }: { c: GenerationPoolsController }) {
   const headline = generatorHeadline(c.status);
   const selectedPool = typeof c.selected === "number" ? c.pools?.find((p) => p.id === c.selected) : undefined;
 
   return (
-    <div className="pv pv-split">
-      <div className="pv-split-bar" title={c.status?.reason}>
-        <span className={`pv-led pv-led-${headline.tone}`} aria-hidden="true" />
+    <div className="ai-pools">
+      <div className="ai-pools-bar">
+        <span className={`ai-pools-led ai-pools-led-${headline.tone}`} aria-hidden="true" />
         <strong>{headline.text}</strong>
         <span className="muted">{c.status?.reason}</span>
+        {c.status && (
+          <NextCheckDial
+            seconds={c.status.secondsUntilNextCheck}
+            intervalSeconds={c.status.settings.intervalSeconds}
+            running={c.status.runningNow}
+            working={c.status.generatingPoolName !== null}
+          />
+        )}
         <button className="secondary" disabled={c.busy} onClick={c.togglePause}>
           {c.status?.settings.paused ? "Resume" : "Pause"}
         </button>
@@ -24,30 +33,31 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
       {c.error && <div className="banner banner-error">{c.error}</div>}
       {c.notice && <div className="banner">{c.notice}</div>}
 
-      <div className="pv-split-body">
-        <nav className="pv-split-rail">
+      <div className="ai-pools-body">
+        <nav className="ai-pools-rail">
           <h3>Pools</h3>
+          {c.pools?.length === 0 && <p className="muted ai-pools-rail-empty">None yet.</p>}
           <ul>
             {(c.pools ?? []).map((pool) => (
               <li key={pool.id}>
                 <button
-                  className={`pv-split-rail-item${c.selected === pool.id ? " pv-split-rail-item-active" : ""}`}
+                  className={`ai-pools-rail-item${c.selected === pool.id ? " ai-pools-rail-item-active" : ""}`}
                   onClick={() => c.selectPool(pool)}
                 >
-                  <span className="pv-split-rail-name">
-                    <span className={`pv-dot pv-dot-${toneOf(pool.status)}`} aria-hidden="true" />
-                    {pool.name}
-                  </span>
-                  {/* The status has to be readable without selecting the pool first - otherwise
-                      "why isn't this one filling?" needs a click to answer. */}
-                  <span className={`pv-tag pv-tag-${toneOf(pool.status)}`} title={pool.statusReason}>
+                  <span className="ai-pools-rail-name">{pool.name}</span>
+                  {/* The status belongs in the rail, not just the detail pane - otherwise you have
+                      to select a pool to find out why it isn't filling. */}
+                  <span className={`ai-pools-tag ai-pools-tag-${toneOf(pool.status)}`} title={pool.statusReason}>
                     {pool.status}
                   </span>
-                  <span className="pv-split-rail-meta">
-                    <span className="pv-split-rail-bar">
-                      <span style={{ width: `${percentFull(pool)}%` }} />
+                  <span className="ai-pools-rail-meta">
+                    <span className="ai-pools-rail-bar">
+                      <span
+                        className={pool.status === "Generating" ? "ai-pools-bar-busy" : undefined}
+                        style={{ width: `${percentFull(pool)}%` }}
+                      />
                     </span>
-                    <span className="pv-split-rail-count">
+                    <span className="ai-pools-rail-count">
                       {pool.readyCount}/{pool.targetCount}
                     </span>
                   </span>
@@ -55,31 +65,33 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
               </li>
             ))}
           </ul>
-          <button className="secondary pv-split-rail-new" onClick={c.startNewPool}>
+          <button className="secondary ai-pools-rail-new" onClick={c.startNewPool}>
             New pool
           </button>
 
           {c.settingsForm && (
-            <div className="pv-split-schedule">
+            <div className="ai-pools-schedule">
               <h3>Schedule</h3>
+              <div className="ai-pools-schedule-pair">
+                <label>
+                  From (UTC)
+                  <input
+                    type="time"
+                    value={c.settingsForm.windowStartUtc ?? ""}
+                    onChange={(e) => c.setSettingsForm({ ...c.settingsForm!, windowStartUtc: e.target.value || null })}
+                  />
+                </label>
+                <label>
+                  Until (UTC)
+                  <input
+                    type="time"
+                    value={c.settingsForm.windowEndUtc ?? ""}
+                    onChange={(e) => c.setSettingsForm({ ...c.settingsForm!, windowEndUtc: e.target.value || null })}
+                  />
+                </label>
+              </div>
               <label>
-                From (UTC)
-                <input
-                  type="time"
-                  value={c.settingsForm.windowStartUtc ?? ""}
-                  onChange={(e) => c.setSettingsForm({ ...c.settingsForm!, windowStartUtc: e.target.value || null })}
-                />
-              </label>
-              <label>
-                Until (UTC)
-                <input
-                  type="time"
-                  value={c.settingsForm.windowEndUtc ?? ""}
-                  onChange={(e) => c.setSettingsForm({ ...c.settingsForm!, windowEndUtc: e.target.value || null })}
-                />
-              </label>
-              <label>
-                Seconds between entries
+                Seconds between checks
                 <input
                   type="number"
                   min={10}
@@ -101,24 +113,32 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
               <button disabled={c.busy} onClick={() => c.saveSettings(c.settingsForm!)}>
                 Save schedule
               </button>
-              <p className="muted">Server clock {c.status?.nowUtc} UTC. Blank times allow any hour.</p>
+              <p className="muted">
+                Server clock {c.status?.nowUtc} UTC. Leave both times blank to allow any hour; an end earlier than
+                the start wraps past midnight.
+              </p>
             </div>
           )}
         </nav>
 
-        <section className="pv-split-detail">
+        <section className="ai-pools-detail">
           {c.selected === null ? (
-            <p className="muted pv-split-empty">Pick a pool on the left, or create one.</p>
+            <div className="ai-pools-empty muted">
+              <p>Pick a pool on the left, or create one.</p>
+              <p>
+                A pool pre-generates content for one kind of template placeholder, so filling it is instant instead
+                of waiting on the model. A template opts in by adding <code>- Pool: Name</code> to that placeholder
+                in its <code>ai-template</code> block.
+              </p>
+            </div>
           ) : (
             <>
-              <div className="pv-split-detail-head">
+              <div className="ai-pools-detail-head">
                 <h3>{c.selected === "new" ? "New pool" : c.poolForm.name}</h3>
-                {selectedPool && (
-                  <span className="muted pv-split-detail-reason">{selectedPool.statusReason}</span>
-                )}
+                {selectedPool && <span className="muted">{selectedPool.statusReason}</span>}
               </div>
 
-              <div className="pv-split-fields">
+              <div className="ai-pools-fields">
                 {c.selected === "new" && (
                   <label>
                     Name
@@ -138,7 +158,7 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
                     onChange={(e) => c.setPoolForm({ ...c.poolForm, targetCount: Number(e.target.value) })}
                   />
                 </label>
-                <label className="pv-split-check">
+                <label className="ai-pools-check">
                   <input
                     type="checkbox"
                     checked={c.poolForm.enabled}
@@ -148,8 +168,11 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
                 </label>
               </div>
 
-              <label className="pv-split-prompt">
-                Prompt
+              <label className="ai-pools-prompt">
+                <span>
+                  Prompt - the same bullet rules a template's <code>ai-template</code> block uses, including{" "}
+                  <code>Format:</code>, <code>Example:</code>, <code>Max words:</code>, and <code>Max sentences:</code>.
+                </span>
                 <textarea
                   aria-label="Pool prompt"
                   rows={8}
@@ -158,7 +181,7 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
                 />
               </label>
 
-              <div className="pv-split-actions">
+              <div className="ai-pools-actions">
                 <button disabled={c.busy || !c.poolForm.name.trim()} onClick={c.savePool}>
                   Save pool
                 </button>
@@ -168,7 +191,7 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
                       Generate one now
                     </button>
                     {selectedPool && (
-                      <button className="link-button" disabled={c.busy} onClick={() => c.deletePool(selectedPool)}>
+                      <button className="link-button ai-pools-delete" disabled={c.busy} onClick={() => c.deletePool(selectedPool)}>
                         Delete pool
                       </button>
                     )}
@@ -177,15 +200,20 @@ export function PoolsSplit({ c }: { c: GenerationPoolsController }) {
               </div>
 
               {c.selected !== "new" && (
-                <div className="pv-split-entries">
+                <div className="ai-pools-entries">
                   <h4>Ready entries ({c.entries.length})</h4>
                   {c.entries.length === 0 ? (
                     <p className="muted">Nothing generated yet.</p>
                   ) : (
                     c.entries.map((entry) => (
-                      <div key={entry.id} className="pv-split-entry">
+                      <div key={entry.id} className="ai-pools-entry">
                         <span>{entry.content}</span>
-                        <button className="link-button" disabled={c.busy} onClick={() => c.forget(entry.id)}>
+                        <button
+                          className="link-button"
+                          disabled={c.busy}
+                          title="Forget this entry - never show or regenerate it"
+                          onClick={() => c.forget(entry.id)}
+                        >
                           Forget
                         </button>
                       </div>

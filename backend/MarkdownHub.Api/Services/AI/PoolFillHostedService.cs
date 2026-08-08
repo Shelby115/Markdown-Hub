@@ -9,11 +9,13 @@ namespace MarkdownHub.Api.Services;
 public class PoolFillHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly PoolActivityTracker _activity;
     private readonly ILogger<PoolFillHostedService> _logger;
 
-    public PoolFillHostedService(IServiceScopeFactory scopeFactory, ILogger<PoolFillHostedService> logger)
+    public PoolFillHostedService(IServiceScopeFactory scopeFactory, PoolActivityTracker activity, ILogger<PoolFillHostedService> logger)
     {
         _scopeFactory = scopeFactory;
+        _activity = activity;
         _logger = logger;
     }
 
@@ -22,6 +24,10 @@ public class PoolFillHostedService : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             var interval = await RunOnceAsync(stoppingToken);
+
+            // Published so the admin page can count down to a real event rather than guessing
+            // from the interval, which would drift out of step with the actual loop.
+            _activity.ScheduleNextPass(DateTimeOffset.UtcNow + interval);
             try
             {
                 await Task.Delay(interval, stoppingToken);

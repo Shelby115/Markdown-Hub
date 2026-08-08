@@ -15,6 +15,7 @@ public class AiPoolControllerTests : IDisposable
     private readonly AppDbContext _db;
     private readonly FakeAiService _ai = new();
     private readonly GenerationPoolService _pools;
+    private readonly PoolActivityTracker _activity = new();
     private readonly AiPoolController _sut;
     private readonly AiPoolAdminController _admin;
 
@@ -42,9 +43,9 @@ public class AiPoolControllerTests : IDisposable
         };
         var currentUser = new CurrentUserService(_db, httpContextAccessor);
         var audit = new AuditLogService(_db, httpContextAccessor);
-        _pools = new GenerationPoolService(_db, _ai, new PoolActivityTracker());
+        _pools = new GenerationPoolService(_db, _ai, _activity);
         _sut = new AiPoolController(_pools, currentUser, audit);
-        _admin = new AiPoolAdminController(_pools, new PoolActivityTracker(), currentUser, audit);
+        _admin = new AiPoolAdminController(_pools, _activity, currentUser, audit);
     }
 
     public void Dispose() => _db.Dispose();
@@ -150,6 +151,45 @@ public class AiPoolControllerTests : IDisposable
             new GenerationPoolSettingsDto(false, "25:00", null, 60, 30), CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetSettings_BeforeTheGeneratorHasScheduledAPass_HasNoCountdown()
+    {
+        var status = Value<GenerationPoolStatusDto>(await _admin.GetSettings(CancellationToken.None));
+
+        Assert.Null(status.SecondsUntilNextCheck);
+    }
+
+    [Fact]
+    public async Task GetSettings_CountsDownToTheGeneratorsActualNextPass()
+    {
+        _activity.ScheduleNextPass(DateTimeOffset.UtcNow.AddSeconds(45));
+
+        var status = Value<GenerationPoolStatusDto>(await _admin.GetSettings(CancellationToken.None));
+
+        Assert.InRange(status.SecondsUntilNextCheck!.Value, 44, 45);
+    }
+
+    [Fact]
+    public async Task GetSettings_APassThatAlreadyOverran_ReportsZeroRatherThanANegativeCountdown()
+    {
+        _activity.ScheduleNextPass(DateTimeOffset.UtcNow.AddSeconds(-30));
+
+        var status = Value<GenerationPoolStatusDto>(await _admin.GetSettings(CancellationToken.None));
+
+        Assert.Equal(0, status.SecondsUntilNextCheck);
+    }
+
+    [Fact]
+    public async Task List_MarksThePoolBeingWrittenRightNow()
+    {
+        await CreatePoolAsync();
+        _activity.Start("Interactible");
+
+        var pools = Value<List<GenerationPoolDto>>(await _admin.List(CancellationToken.None));
+
+        Assert.Equal("Generating", Assert.Single(pools).Status);
     }
 
     [Fact]

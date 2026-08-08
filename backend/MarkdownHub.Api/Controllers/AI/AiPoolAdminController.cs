@@ -159,7 +159,19 @@ public class AiPoolAdminController : ControllerBase
             settings.IsAllowedAt(now),
             ReasonFor(settings, now),
             _activity.CurrentPoolName,
+            SecondsUntilNextCheck(now),
             now.UtcDateTime.ToString("HH:mm"));
+    }
+
+    /// <summary>Clamped to the configured interval: a pass that overran (a slow model call) would
+    /// otherwise report a due time in the past, which a countdown can't do anything sensible with.</summary>
+    private int? SecondsUntilNextCheck(DateTimeOffset now)
+    {
+        if (_activity.NextPassDueUtc is not DateTimeOffset due)
+        {
+            return null;
+        }
+        return Math.Max(0, (int)Math.Ceiling((due - now).TotalSeconds));
     }
 
     private static string ReasonFor(GenerationPoolSettings settings, DateTimeOffset now)
@@ -173,8 +185,8 @@ public class AiPoolAdminController : ControllerBase
             return $"Generation is only allowed between {settings.WindowDescription}, and it is now {now.UtcDateTime:HH:mm} UTC.";
         }
         return settings.WindowDescription is string window
-            ? $"Inside the allowed window ({window}), checking every {settings.IntervalSeconds} seconds for a pool to top up."
-            : $"No window set, so pools are topped up at any hour - checking every {settings.IntervalSeconds} seconds.";
+            ? $"Inside the allowed window ({window}), topping up whichever pool needs it most."
+            : "No window set, so pools are topped up at any hour.";
     }
 
     private async Task<GenerationPoolDto> ToDtoAsync(GenerationPool pool, GenerationPoolSettings settings, CancellationToken ct)

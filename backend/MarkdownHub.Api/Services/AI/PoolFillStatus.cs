@@ -43,6 +43,6 @@ public record PoolFillStatus(string Label, string Reason)
             return new("Waiting", $"{pool.TargetCount - readyCount} more to generate, but generation is only allowed between {settings.WindowDescription}. It is now {nowUtc.UtcDateTime:HH:mm} UTC.");
         }
 
-        return new("Queued", $"{pool.TargetCount - readyCount} more to generate - the next one starts within {settings.IntervalSeconds} seconds.");
+        return new("Queued", $"{pool.TargetCount - readyCount} more to generate - waiting for the generator's next pass.");
     }
 }

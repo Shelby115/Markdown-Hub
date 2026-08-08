@@ -10,7 +10,7 @@ import { AiAssistantPanel } from "./components/AiAssistantPanel";
 import { FileTree } from "./components/FileTree";
 import { SearchBar } from "./components/SearchBar";
 import { PageView } from "./pages/PageView";
-import { PoolLab } from "./pages/PoolLab";
+import { AiLab } from "./pages/AiLab";
 import { PublishedPage } from "./pages/PublishedPage";
 import { Welcome } from "./pages/Welcome";
 import { toPageUrl } from "./pageUrl";
@@ -274,10 +274,10 @@ export default function App() {
               Admin
             </button>
           )}
-          {/* TEMPORARY - goes away with the pool design lab once a layout is picked. */}
+          
           {isAdmin && (
-            <button className="link-button" onClick={() => navigate("/pool-lab")}>
-              Pool Lab
+            <button className="link-button" onClick={() => navigate("/ai-lab")}>
+              AI
             </button>
           )}
         </div>
@@ -299,7 +299,7 @@ export default function App() {
           <Route path="/account" element={<Account />} />
           {isAdmin && <Route path="/admin" element={<Admin />} />}
           {isAdmin && <Route path="/admin/activity" element={<ActivityLogPage />} />}
-          {isAdmin && <Route path="/pool-lab" element={<PoolLab />} />}
+          {isAdmin && <Route path="/ai-lab" element={<AiLab />} />}
         </Routes>
       </main>
       <AiAssistantPanel

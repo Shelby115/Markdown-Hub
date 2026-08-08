@@ -294,7 +294,7 @@ on first use — the quickest way to confirm it's wired up. On plain Docker Engi
 (typical on Linux) `host.docker.internal` doesn't resolve unless you add it via
 `extra_hosts`, as above.
 
-An admin can override the model at runtime from Admin → AI model without touching `.env`
+An admin can override the model at runtime from the **AI** page (sidebar → AI) without touching `.env`
 or restarting. That override takes precedence over `OLLAMA_MODEL`.
 
 ## AI Templates (optional)
@@ -379,7 +379,7 @@ content for one kind of placeholder — interactibles, NPC names, rumours. A bac
 fills it while nothing else is happening, and a template that uses it gets an entry straight
 out of the database instead of waiting on the model.
 
-Create one under Admin → **AI generation pools**: give it a name, a prompt (the same bullet
+Create one on the **AI** page (sidebar → AI) under **Generation pools**: give it a name, a prompt (the same bullet
 rules a template's instruction block uses, `Format:`/`Example:`/`Max words:`/`Max sentences:`
 included), and how many entries to keep ready. Tick "Generate entries for this pool in the
 background" when you're happy with the prompt — nothing runs against Ollama until you do.

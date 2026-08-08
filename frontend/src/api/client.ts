@@ -105,6 +105,8 @@ export interface GenerationPoolStatus {
   reason: string;
   /** The pool currently having an entry written for it, if any. */
   generatingPoolName: string | null;
+  /** Until the generator's next pass. Null before it has scheduled one. */
+  secondsUntilNextCheck: number | null;
   nowUtc: string;
 }
 

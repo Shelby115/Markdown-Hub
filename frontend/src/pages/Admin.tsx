@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   AdminFolderPermission,
   AdminUser,
-  AiSettings,
   AuthenticationProvider,
   HistorySettings,
   PROVIDER_TYPE_LABELS,
@@ -14,7 +13,6 @@ import {
   api,
   extractErrorMessage,
 } from "../api/client";
-import { AiPoolAdmin } from "../components/AiPoolAdmin";
 
 const EMPTY_CONFIGURATION: ProviderConfiguration = {
   authority: "",
@@ -64,12 +62,6 @@ export function Admin() {
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [resetPasswordBusy, setResetPasswordBusy] = useState(false);
 
-  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
-  const [aiModels, setAiModels] = useState<string[] | null>(null);
-  const [aiModelsError, setAiModelsError] = useState<string | null>(null);
-  const [modelInput, setModelInput] = useState("");
-  const [aiBusy, setAiBusy] = useState(false);
-
   const [historySettings, setHistorySettings] = useState<HistorySettings | null>(null);
   const [historyForm, setHistoryForm] = useState<HistorySettings | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
@@ -89,25 +81,6 @@ export function Admin() {
       setPermissions(p);
     } catch {
       setError("Couldn't load admin data.");
-    }
-  };
-
-  const loadAiSettings = async () => {
-    try {
-      const settings = await api.adminGetAiSettings();
-      setAiSettings(settings);
-      setModelInput(settings.selectedModel ?? "");
-    } catch (err) {
-      setError(extractErrorMessage(err, "Couldn't load AI settings."));
-    }
-    // Listing installed models can fail independently (e.g. Ollama unreachable) without
-    // blocking the settings above - a manual model name can still be typed in either way.
-    try {
-      const { models } = await api.adminListAiModels();
-      setAiModels(models);
-      setAiModelsError(null);
-    } catch (err) {
-      setAiModelsError(extractErrorMessage(err, "Couldn't list installed Ollama models."));
     }
   };
 
@@ -136,7 +109,6 @@ export function Admin() {
 
   useEffect(() => {
     void load();
-    void loadAiSettings();
     void loadHistorySettings();
     void loadProviders();
   }, []);
@@ -211,34 +183,6 @@ export function Admin() {
       setError(extractErrorMessage(err, "Couldn't reset that user's password."));
     } finally {
       setResetPasswordBusy(false);
-    }
-  };
-
-  const saveAiModel = async () => {
-    setAiBusy(true);
-    setError(null);
-    try {
-      const settings = await api.adminSetAiModel(modelInput.trim() || null);
-      setAiSettings(settings);
-      setModelInput(settings.selectedModel ?? "");
-    } catch (err) {
-      setError(extractErrorMessage(err, "Couldn't save the AI model."));
-    } finally {
-      setAiBusy(false);
-    }
-  };
-
-  const resetAiModel = async () => {
-    setAiBusy(true);
-    setError(null);
-    try {
-      const settings = await api.adminSetAiModel(null);
-      setAiSettings(settings);
-      setModelInput("");
-    } catch (err) {
-      setError(extractErrorMessage(err, "Couldn't reset the AI model."));
-    } finally {
-      setAiBusy(false);
     }
   };
 
@@ -648,48 +592,6 @@ export function Admin() {
           </>
         )}
       </section>
-
-      <section className="admin-section">
-        <h2>AI model</h2>
-        {!aiSettings ? (
-          <p className="muted">Loading…</p>
-        ) : (
-          <>
-            <p className="muted">
-              Currently using <strong>{aiSettings.effectiveModel}</strong>
-              {!aiSettings.selectedModel && " (configured default - no override set)"}. Applies to AI-assisted
-              editing and the AI assistant for every user.
-            </p>
-            {aiModelsError && (
-              <div className="banner banner-warning">{aiModelsError} You can still type a model name manually below.</div>
-            )}
-            <div className="admin-grant-form">
-              <input
-                list="ai-model-options"
-                type="text"
-                placeholder={aiSettings.configuredDefaultModel}
-                value={modelInput}
-                onChange={(e) => setModelInput(e.target.value)}
-              />
-              {aiModels && (
-                <datalist id="ai-model-options">
-                  {aiModels.map((m) => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
-              )}
-              <button disabled={aiBusy} onClick={() => void saveAiModel()}>
-                Save
-              </button>
-              <button className="secondary" disabled={aiBusy || !aiSettings.selectedModel} onClick={() => void resetAiModel()}>
-                Reset to default
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-
-      <AiPoolAdmin />
 
       <section className="admin-section">
         <h2>Version history &amp; activity log</h2>
