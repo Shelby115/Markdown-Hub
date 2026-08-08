@@ -57,6 +57,8 @@ notices external changes and reindexes them, and your notes are just files.
   retention.
 - Optional AI assistant panel backed by your own local [Ollama](https://ollama.com)
   instance. Nothing is ever sent to a third-party API.
+- AI Templates: turn a template into a generator whose sections you can reroll,
+  improve, and lock individually. See below.
 
 ## Prerequisites
 
@@ -292,6 +294,73 @@ on first use — the quickest way to confirm it's wired up. On plain Docker Engi
 
 An admin can override the model at runtime from Admin → AI model without touching `.env`
 or restarting. That override takes precedence over `OLLAMA_MODEL`.
+
+## AI Templates (optional)
+
+An AI Template is an ordinary template page that generates its own content. Write the
+document's structure with `{{Placeholder}}` markers, then describe what each placeholder
+should produce in a fenced ` ```ai-template ` block:
+
+````markdown
+# Adventure
+
+{{Scene}}
+
+## Interactibles
+
+{{Interactible}}
+{{Interactible}}
+{{Interactible}}
+{{Interactible}}
+
+## Encounter
+
+{{Encounter}}
+
+```ai-template
+Scene:
+- Random biome and location.
+- Very brief scene-setting description.
+- Max words: 60
+
+Interactible:
+- One brief interactible.
+- Item 1 is mundane; items 2 and 3 have obvious interactions; item 4 hides a secret.
+- Format: **Name**. One brief sentence.
+- Max words: 30
+- Example: **Rusted Lantern**. It still holds a little oil.
+
+Encounter:
+- One NPC or monster appropriate to the generated setting.
+```
+````
+
+Mark the page as a template (page menu → "Mark as template"), then create a page from it
+the usual way — the generation panel opens instead of the fill-in-the-blank prompt.
+
+- **Generate all** fills every placeholder, one at a time, each one aware of what came before.
+- **Reroll** (🎲) regenerates a single section; **Improve** (✨) revises it while keeping its
+  subject; **Lock** (🔒) freezes it, and locked sections become context for everything
+  generated afterward. Each section is also editable by hand.
+- A repeated placeholder becomes that many independent sections — four `{{Interactible}}`
+  lines always produce exactly four interactibles, since the count comes from your template
+  rather than from the model.
+- **Save as page** writes ordinary Markdown. Nothing about the result is special afterward:
+  it's versioned, indexed, and editable like any other page.
+
+Recognized instruction rules: `Format:`, `Example:`, `Max words: N`, and
+`Max sentences: N` are checked after generation (a section that fails is regenerated once,
+then shown with a warning rather than being thrown away). Every other `- bullet` is free
+text passed to the model as-is. Examples are explicitly treated as formatting samples the
+model is told never to reuse.
+
+Placeholders with no entry in the instruction block stay ordinary fill-in-the-blank
+variables, so a template can mix both. A template with no ` ```ai-template ` block behaves
+exactly as it always has.
+
+Generation is one model call per placeholder, so a large template takes a while on a local
+model — `Ai:Ollama:TimeoutSeconds` applies to each section, not the whole document. Progress
+appears section by section and can be stopped partway; whatever generated already is kept.
 
 ## Updating
 

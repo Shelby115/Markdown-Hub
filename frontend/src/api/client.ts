@@ -37,6 +37,38 @@ export interface AssistantResultCard {
   content: string;
 }
 
+/** One ordered piece of an AI Template: literal Markdown, or the id of a slot to fill. */
+export interface AiTemplateElement {
+  text: string | null;
+  slotId: string | null;
+}
+
+export interface AiTemplateSlot {
+  id: string;
+  name: string;
+  index: number;
+  count: number;
+}
+
+export interface AiTemplateParseResult {
+  elements: AiTemplateElement[];
+  slots: AiTemplateSlot[];
+  fillInVariables: string[];
+}
+
+export interface AiTemplateSlotValue {
+  id: string;
+  content: string;
+  locked: boolean;
+}
+
+export interface AiTemplateGenerateResult {
+  content: string;
+  warnings: string[];
+}
+
+export type AiTemplateMode = "Generate" | "Improve";
+
 export interface AiSettings {
   selectedModel: string | null;
   configuredDefaultModel: string;
@@ -374,6 +406,18 @@ export const api = {
     request<{ results: AssistantResultCard[] }>("/api/ai/assistant", {
       method: "POST",
       body: JSON.stringify({ action, question, contextPaths }),
+    }),
+
+  aiTemplateParse: (templatePath: string) =>
+    request<AiTemplateParseResult>("/api/ai/template/parse", {
+      method: "POST",
+      body: JSON.stringify({ templatePath }),
+    }),
+
+  aiTemplateGenerate: (templatePath: string, slotId: string, mode: AiTemplateMode, slots: AiTemplateSlotValue[]) =>
+    request<AiTemplateGenerateResult>("/api/ai/template/generate", {
+      method: "POST",
+      body: JSON.stringify({ templatePath, slotId, mode, slots }),
     }),
 
   adminListAiModels: () => request<{ models: string[] }>("/api/admin/ai/models"),

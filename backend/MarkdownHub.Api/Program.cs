@@ -39,6 +39,7 @@ builder.Services.AddScoped<AuditLogService>();
 builder.Services.AddScoped<VersionService>();
 builder.Services.AddScoped<HistorySettingsService>();
 builder.Services.AddScoped<IAiService, OllamaAiService>();
+builder.Services.AddScoped<AiTemplateService>();
 builder.Services.AddHostedService<HubFileWatcherService>();
 builder.Services.AddHostedService<ScheduledBackupHostedService>();
 builder.Services.AddHostedService<HistoryCleanupHostedService>();

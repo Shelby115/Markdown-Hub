@@ -184,6 +184,12 @@ run the API separately, e.g. `dotnet run` from `backend/MarkdownHub.Api`).
   found" message (pointing at the `OLLAMA_BASE_URL`/`OLLAMA_MODEL` env vars) instead of the
   full panel when Ollama isn't reachable or has no model installed, rather than only failing
   once someone tries to use it.
+- AI Templates (see the AI Templates Design section and
+  `docs/AI Generation Template Feature Design.md`): a template page carrying `{{Placeholder}}`
+  markers plus a fenced ` ```ai-template ` instruction block becomes a generator. The
+  application parses the structure and generates one placeholder at a time, so section counts
+  and headings are enforced by construction rather than by the model; each generated section
+  is independently rerollable/improvable/lockable and the result saves as ordinary Markdown.
 - Version history and activity log (see the Version History and Activity Log Design section
   and `Activity-And-History.md`): coalesced auto-versioning with a GitHub-style diff/compare/
   restore UI per document, soft-deleted-document recovery, and an admin-only, filterable/
@@ -294,6 +300,35 @@ label, and audio/video/PDF embeds) shipped; see "What's implemented" above.
   * Include the ability to undo/redo this change.
   
   
+### AI Templates Design
+
+Design doc: `docs/AI Generation Template Feature Design.md`. Implementation plan:
+`docs/plans/ai-templates.md`.
+
+* [x] **Turn templates into AI generators.** A template is an AI Template iff its content
+  contains a fenced ` ```ai-template ` block; that block maps each `{{Placeholder}}` name to its
+  generation rules (free-text bullets plus the recognized `Format:` / `Example:` /
+  `Max words: N` / `Max sentences: N` prefixes). No new tables, columns, or admin surface - it
+  reuses the existing `IsTemplate` flag and the "New page from template" entry point.
+* [x] **The model never produces the document skeleton.** `AiTemplateParser` splits the template
+  into ordered literal segments and slots (`Name#Index`), and `AiTemplateService` generates one
+  slot per request. Repeated placeholders become that many slots, so "four interactibles" is
+  true by construction. This also makes reroll the same code path as initial generation.
+* [x] **Deterministic validation with one correction retry.** `AiTemplateValidator` rejects
+  headings, leftover `{{...}}`, preambles, and declared word/sentence/format violations;
+  `AiTemplateService` retries once with the failed checks fed back, then returns the content
+  anyway with warnings - a failed check never blanks out a result.
+* [x] **Stateless backend, ephemeral session.** `AiTemplateController`
+  (`/api/ai/template/parse`, `/api/ai/template/generate`) re-reads and re-parses the template on
+  every call, so a client can name a slot but never supply structure or instructions. Slot
+  values and locks live in `AiTemplatePanel`'s React state; closing the panel discards them.
+  "Generate all" is N sequential client calls, so a failure partway leaves earlier slots intact.
+* [x] **Placeholders without an instruction entry stay ordinary fill-in variables**, collected
+  by the existing `TemplateVariablesModal` before generation starts. A template with no
+  instruction block is unaffected.
+* Deliberately not done: session persistence across closing the panel, parallel slot generation,
+  and an editor-toolbar entry point for generating into an already-open page.
+
 ### Dice Roller Design
 
 * [x] **Add an inline dice roller to the markdown editor** — implemented in the live-preview

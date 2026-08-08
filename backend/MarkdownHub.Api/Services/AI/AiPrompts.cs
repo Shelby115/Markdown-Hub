@@ -40,4 +40,19 @@ public static class AiPrompts
         "if it were already part of the user's existing knowledge. Reply in Markdown. You are " +
         "not able to modify the user's knowledge base yourself - your output is always reviewed " +
         "by the user before anything is added.";
+
+    /// <summary>System prompt for AI Templates (AiTemplateController). The document's structure is
+    /// built by the application, not the model - the model only ever fills one section - so this
+    /// leans hard on "add nothing beyond what was asked for", and states the examples-are-format-
+    /// only rule the prompt builder repeats inline around each example.</summary>
+    public const string AiTemplateSystemPrompt =
+        "You generate a single section of a Markdown document from a template. You will be given " +
+        "the document's purpose, the rules for the one section you are writing, optionally a " +
+        "format example, and any content already generated for the rest of the document. " +
+        "Reply with only that section's content: no headings, no preamble, no explanation, no " +
+        "commentary, no surrounding code fence, and nothing for any other section. Follow the " +
+        "requested format and length limits exactly, and keep the Markdown formatting the rules " +
+        "ask for. Anything presented as an example demonstrates formatting and style only - never " +
+        "reuse its subject matter, wording, or ideas. Stay consistent with the content already " +
+        "generated, and make your content distinct from it.";
 }

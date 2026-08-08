@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { api, TemplateInfo, TreeNode } from "../api/client";
+import { AiTemplateParseResult, api, TemplateInfo, TreeNode } from "../api/client";
+import { AiTemplatePanel } from "./AiTemplatePanel";
 import { TemplateVariablesModal } from "./TemplateVariablesModal";
 
 const DRAG_MIME = "text/x-hub-path";
@@ -69,6 +70,17 @@ interface PendingTemplateCreate {
   name: string;
   content: string;
   variables: string[];
+  /** Set when the chosen template is an AI Template - its fill-in variables are collected first,
+   * then the generation panel opens instead of the page being created straight away. */
+  aiTemplate?: { templatePath: string; parsed: AiTemplateParseResult };
+}
+
+interface PendingAiTemplateCreate {
+  folderPath: string;
+  name: string;
+  templatePath: string;
+  parsed: AiTemplateParseResult;
+  variables: Record<string, string>;
 }
 
 export function FileTree({
@@ -96,6 +108,7 @@ export function FileTree({
   const [folderMenuOpenPath, setFolderMenuOpenPath] = useState<string | null>(null);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   const [pendingTemplateCreate, setPendingTemplateCreate] = useState<PendingTemplateCreate | null>(null);
+  const [pendingAiTemplate, setPendingAiTemplate] = useState<PendingAiTemplateCreate | null>(null);
   const [rootDragOver, setRootDragOver] = useState(false);
   // True for the whole duration of any file drag (not just while hovering a specific drop
   // target) - used to enlarge/highlight every folder row's drop area for the entire drag, so
@@ -261,6 +274,32 @@ export function FileTree({
       }
       try {
         const template = await api.getPage(templateRelativePath);
+
+        // An AI Template is just a template whose content carries an ai-template instruction
+        // block; the parse call reports zero slots for every other template, which then follows
+        // the ordinary fill-in-the-blank path below unchanged.
+        const parsed = await api.aiTemplateParse(templateRelativePath).catch(() => null);
+        if (parsed && parsed.slots.length > 0) {
+          if (parsed.fillInVariables.length === 0) {
+            setPendingAiTemplate({
+              folderPath,
+              name: trimmed,
+              templatePath: templateRelativePath,
+              parsed,
+              variables: {},
+            });
+          } else {
+            setPendingTemplateCreate({
+              folderPath,
+              name: trimmed,
+              content: template.content,
+              variables: parsed.fillInVariables,
+              aiTemplate: { templatePath: templateRelativePath, parsed },
+            });
+          }
+          return;
+        }
+
         const variables = extractTemplateVariables(template.content);
         if (variables.length === 0) {
           await createPage(folderPath, trimmed, template.content);
@@ -370,9 +409,34 @@ export function FileTree({
           variables={pendingTemplateCreate.variables}
           onCancel={() => setPendingTemplateCreate(null)}
           onSubmit={(values) => {
-            const filled = substituteTemplateVariables(pendingTemplateCreate.content, values);
+            const pending = pendingTemplateCreate;
             setPendingTemplateCreate(null);
-            void createPage(pendingTemplateCreate.folderPath, pendingTemplateCreate.name, filled);
+            if (pending.aiTemplate) {
+              setPendingAiTemplate({
+                folderPath: pending.folderPath,
+                name: pending.name,
+                templatePath: pending.aiTemplate.templatePath,
+                parsed: pending.aiTemplate.parsed,
+                variables: values,
+              });
+              return;
+            }
+            const filled = substituteTemplateVariables(pending.content, values);
+            void createPage(pending.folderPath, pending.name, filled);
+          }}
+        />
+      )}
+      {pendingAiTemplate && (
+        <AiTemplatePanel
+          templatePath={pendingAiTemplate.templatePath}
+          pageName={pendingAiTemplate.name}
+          parsed={pendingAiTemplate.parsed}
+          variables={pendingAiTemplate.variables}
+          onCancel={() => setPendingAiTemplate(null)}
+          onSave={(content) => {
+            const pending = pendingAiTemplate;
+            setPendingAiTemplate(null);
+            void createPage(pending.folderPath, pending.name, content);
           }}
         />
       )}
