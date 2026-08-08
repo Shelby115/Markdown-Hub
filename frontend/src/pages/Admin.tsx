@@ -14,6 +14,7 @@ import {
   api,
   extractErrorMessage,
 } from "../api/client";
+import { AiPoolAdmin } from "../components/AiPoolAdmin";
 
 const EMPTY_CONFIGURATION: ProviderConfiguration = {
   authority: "",
@@ -687,6 +688,8 @@ export function Admin() {
           </>
         )}
       </section>
+
+      <AiPoolAdmin />
 
       <section className="admin-section">
         <h2>Version history &amp; activity log</h2>

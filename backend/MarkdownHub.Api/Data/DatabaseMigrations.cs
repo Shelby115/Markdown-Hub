@@ -98,6 +98,37 @@ public static class DatabaseMigrations
         await db.Database.ExecuteSqlRawAsync(
             "CREATE INDEX IF NOT EXISTS IX_DocumentVersions_CreatedAtUtc ON DocumentVersions (CreatedAtUtc);", ct);
 
+        // AI generation pools - pre-generated content for AI Template placeholders.
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS GenerationPools (
+                Id INTEGER NOT NULL CONSTRAINT PK_GenerationPools PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                Instructions TEXT NOT NULL,
+                TargetCount INTEGER NOT NULL,
+                Enabled INTEGER NOT NULL,
+                CreatedAtUtc TEXT NOT NULL,
+                UpdatedAtUtc TEXT NOT NULL
+            );
+            """, ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE UNIQUE INDEX IF NOT EXISTS IX_GenerationPools_Name ON GenerationPools (Name);", ct);
+
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE IF NOT EXISTS GenerationPoolEntries (
+                Id INTEGER NOT NULL CONSTRAINT PK_GenerationPoolEntries PRIMARY KEY AUTOINCREMENT,
+                PoolId INTEGER NOT NULL,
+                Content TEXT NOT NULL,
+                ContentHash TEXT NOT NULL,
+                Status TEXT NOT NULL,
+                CreatedAtUtc TEXT NOT NULL,
+                SpentAtUtc TEXT NULL
+            );
+            """, ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE UNIQUE INDEX IF NOT EXISTS IX_GenerationPoolEntries_PoolId_ContentHash ON GenerationPoolEntries (PoolId, ContentHash);", ct);
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS IX_GenerationPoolEntries_PoolId_Status ON GenerationPoolEntries (PoolId, Status);", ct);
+
         // EF Core names a table after its DbSet property by convention (AppDbContext.Settings),
         // not after the entity class (AppSetting) - this table must be named "Settings" to match
         // what EF actually queries, or every read/write against it 500s with "no such table".

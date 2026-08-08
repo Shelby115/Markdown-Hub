@@ -190,6 +190,10 @@ run the API separately, e.g. `dotnet run` from `backend/MarkdownHub.Api`).
   application parses the structure and generates one placeholder at a time, so section counts
   and headings are enforced by construction rather than by the model; each generated section
   is independently rerollable/improvable/lockable and the result saves as ordinary Markdown.
+- AI Generation Pools (see the AI Generation Pools Design section and
+  `docs/AI Generation Pools Design.md`): named libraries of pre-generated placeholder content,
+  filled by a background service on an admin-configurable schedule, so a placeholder that opts
+  in with `- Pool: Name` is served from the database instead of waiting on Ollama.
 - Version history and activity log (see the Version History and Activity Log Design section
   and `Activity-And-History.md`): coalesced auto-versioning with a GitHub-style diff/compare/
   restore UI per document, soft-deleted-document recovery, and an admin-only, filterable/
@@ -249,8 +253,8 @@ additional card types, "Add as New Page", persisted conversation history).
 
 ## To Do list
 
-Nothing outstanding - the last remaining items (folder deletion, the History dialog's button
-label, and audio/video/PDF embeds) shipped; see "What's implemented" above.
+Nothing outstanding - the last remaining item (AI generation pools) shipped; see
+"What's implemented" above.
 
 ### AI-Assisted Editing Design
 
@@ -388,6 +392,36 @@ Design doc: `docs/AI Generation Template Feature Design.md`. Implementation plan
   * Follow the existing frontend/editor architecture and styling conventions rather than introducing an unrelated UI framework.
   * Add tests covering parsing, modifiers, advantage/disadvantage, totals, invalid notation, and edge cases.
   * Update the README/documentation with the supported dice notation and examples.
+
+### AI Generation Pools Design
+
+Design doc: `docs/AI Generation Pools Design.md`.
+
+* [x] **Pools are named libraries, referenced explicitly.** A `GenerationPool` has its own
+  admin-editable prompt (authored in the same bullet syntax as an `ai-template` block entry, so
+  `AiTemplateParser.ParseInstruction` handles both), a target/cap entry count, and an
+  `Enabled` flag that is **off by default** - nothing runs against Ollama unprompted. A template
+  opts a placeholder in with `- Pool: Name`; the pool's prompt then replaces that placeholder's
+  own rules. Deliberately not name-matching placeholders to pools automatically - pool names are
+  global, and two unrelated templates using `{{Description}}` must not silently share a library.
+* [x] **Entries are kept, not deleted, once spent.** `Ready → Used` on consume, `→ Forgotten` on
+  reject, with a unique `(PoolId, ContentHash)` index over normalized SHA-256. That hash is what
+  makes "forget forever" real: deleting the row would let the generator produce the same text
+  again. Used entries are retention-bounded (dedupe memory only); Forgotten ones are never
+  cleaned up. A pool miss generates live and records the result as Used for the same reason, and
+  an unknown pool name degrades to ordinary generation rather than failing.
+* [x] **The background filler uses idle time, not concurrency machinery.**
+  `PoolFillHostedService` adds at most one entry per pool per tick and re-reads its settings
+  every pass, so pause/window/interval changes take effect without a restart. Admin controls:
+  pause/resume, an allowed UTC window (wraps past midnight; blank = any hour), the interval, the
+  used-entry retention, plus per-pool prompt/target/enabled, a "generate one now" button for
+  prompt tuning, and a ready-entry browser with per-entry Forget.
+* [x] **Generated entries face the same validator as live ones**, with the same single correction
+  retry - but a still-failing entry is dropped rather than returned with warnings, since nobody
+  is waiting on it. Variety comes from feeding the pool's recent entries back as an avoid-list.
+* Deliberately not done: parallel generation, per-user pools or per-user forgetting, and pooling
+  anything that needs to be consistent with the rest of the page (pool entries are written with
+  no knowledge of where they'll land - that's the tradeoff for instant delivery).
 
 ### Version History and Activity Log Design
 

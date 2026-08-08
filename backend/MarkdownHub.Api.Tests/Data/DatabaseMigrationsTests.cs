@@ -63,6 +63,36 @@ public class DatabaseMigrationsTests : IDisposable
         await db.AuthenticationProviders.FirstOrDefaultAsync();
         await db.AuthenticationIdentities.FirstOrDefaultAsync();
         await db.Sessions.FirstOrDefaultAsync();
+        await db.GenerationPools.FirstOrDefaultAsync();
+        await db.GenerationPoolEntries.FirstOrDefaultAsync();
+    }
+
+    [Fact]
+    public async Task ApplyAsync_OnADatabaseThatAlreadyExistsWithoutTheGenerationPoolTables_StillCreatesThem()
+    {
+        var (db1, search1) = NewContext();
+        await using (db1)
+        {
+            await DatabaseMigrations.ApplyAsync(db1, search1);
+            await db1.Database.ExecuteSqlRawAsync("DROP TABLE GenerationPools;");
+            await db1.Database.ExecuteSqlRawAsync("DROP TABLE GenerationPoolEntries;");
+        }
+
+        var (db2, search2) = NewContext();
+        await using var _ = db2;
+        await DatabaseMigrations.ApplyAsync(db2, search2);
+
+        db2.GenerationPools.Add(new GenerationPool { Name = "Interactible", Instructions = "- brief" });
+        await db2.SaveChangesAsync();
+        db2.GenerationPoolEntries.Add(new GenerationPoolEntry
+        {
+            PoolId = db2.GenerationPools.First().Id,
+            Content = "A rusted lantern.",
+            ContentHash = "abc",
+        });
+        await db2.SaveChangesAsync();
+
+        Assert.Equal("A rusted lantern.", (await db2.GenerationPoolEntries.FirstAsync()).Content);
     }
 
     /// <summary>

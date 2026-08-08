@@ -983,3 +983,48 @@ button:disabled { opacity: 0.6; cursor: default; }
   color: var(--content-text);
 }
 .admin-history-settings-form div { display: flex; gap: 0.5rem; }
+
+/* AI generation pools */
+.admin-pool-settings { margin-bottom: 1.5rem; }
+.admin-pool-enabled {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+}
+.admin-pool-enabled input { width: auto !important; }
+.admin-pool-editor {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--content-border);
+  border-radius: 8px;
+}
+.admin-pool-editor > div:last-of-type { display: flex; gap: 0.5rem; }
+.admin-pool-prompt {
+  display: block;
+  margin: 1rem 0;
+  font-size: 0.8rem;
+  color: var(--content-text-muted);
+}
+.admin-pool-prompt textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--content-border);
+  background: var(--content-bg);
+  color: var(--content-text);
+  resize: vertical;
+}
+.admin-pool-entries { margin-top: 1rem; }
+.admin-pool-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--content-border);
+  font-size: 0.9rem;
+}

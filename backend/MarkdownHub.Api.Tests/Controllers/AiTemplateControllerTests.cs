@@ -80,7 +80,8 @@ public class AiTemplateControllerTests : IDisposable
         };
         var currentUser = new CurrentUserService(_db, httpContextAccessor);
         _ai = new FakeAiService();
-        _sut = new AiTemplateController(new AiTemplateService(_ai), currentUser, permissions, files);
+        _sut = new AiTemplateController(
+            new AiTemplateService(_ai, new GenerationPoolService(_db, _ai)), currentUser, permissions, files);
     }
 
     public void Dispose()

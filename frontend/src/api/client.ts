@@ -65,6 +65,39 @@ export interface AiTemplateSlotValue {
 export interface AiTemplateGenerateResult {
   content: string;
   warnings: string[];
+  /** Set when the content came from a generation pool - what "Forget" refers to. */
+  poolEntryId: number | null;
+}
+
+export interface GenerationPool {
+  id: number;
+  name: string;
+  instructions: string;
+  targetCount: number;
+  enabled: boolean;
+  readyCount: number;
+  updatedAtUtc: string;
+}
+
+export interface GenerationPoolEntry {
+  id: number;
+  content: string;
+  status: string;
+  createdAtUtc: string;
+}
+
+export interface GenerationPoolSettings {
+  paused: boolean;
+  windowStartUtc: string | null;
+  windowEndUtc: string | null;
+  intervalSeconds: number;
+  usedEntryRetentionDays: number;
+}
+
+export interface GenerationPoolStatus {
+  settings: GenerationPoolSettings;
+  runningNow: boolean;
+  nowUtc: string;
 }
 
 export type AiTemplateMode = "Generate" | "Improve";
@@ -419,6 +452,29 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ templatePath, slotId, mode, slots }),
     }),
+
+  aiPoolForgetEntry: (entryId: number) =>
+    request<void>(`/api/ai/pool/entries/${entryId}/forget`, { method: "POST" }),
+
+  adminGetPools: () => request<GenerationPool[]>("/api/admin/ai/pools"),
+
+  adminCreatePool: (pool: { name: string; instructions: string; targetCount: number; enabled: boolean }) =>
+    request<GenerationPool>("/api/admin/ai/pools", { method: "POST", body: JSON.stringify(pool) }),
+
+  adminUpdatePool: (id: number, pool: { name: string; instructions: string; targetCount: number; enabled: boolean }) =>
+    request<GenerationPool>(`/api/admin/ai/pools/${id}`, { method: "PUT", body: JSON.stringify(pool) }),
+
+  adminDeletePool: (id: number) => request<void>(`/api/admin/ai/pools/${id}`, { method: "DELETE" }),
+
+  adminGeneratePoolEntry: (id: number) =>
+    request<GenerationPoolEntry>(`/api/admin/ai/pools/${id}/generate`, { method: "POST" }),
+
+  adminGetPoolEntries: (id: number) => request<GenerationPoolEntry[]>(`/api/admin/ai/pools/${id}/entries`),
+
+  adminGetPoolSettings: () => request<GenerationPoolStatus>("/api/admin/ai/pool-settings"),
+
+  adminSetPoolSettings: (settings: GenerationPoolSettings) =>
+    request<GenerationPoolStatus>("/api/admin/ai/pool-settings", { method: "PUT", body: JSON.stringify(settings) }),
 
   adminListAiModels: () => request<{ models: string[] }>("/api/admin/ai/models"),
 

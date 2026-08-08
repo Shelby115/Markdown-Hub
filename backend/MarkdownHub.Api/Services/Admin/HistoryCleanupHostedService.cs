@@ -47,16 +47,20 @@ public class HistoryCleanupHostedService : BackgroundService
             var settings = scope.ServiceProvider.GetRequiredService<HistorySettingsService>();
             var versions = scope.ServiceProvider.GetRequiredService<VersionService>();
             var audit = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+            var pools = scope.ServiceProvider.GetRequiredService<GenerationPoolService>();
 
             var versionRetentionDays = await settings.GetVersionRetentionDaysAsync(ct);
             var activityRetentionDays = await settings.GetActivityRetentionDaysAsync(ct);
+            var poolSettings = await pools.GetSettingsAsync(ct);
 
             var removedVersions = await versions.CleanupExpiredVersionsAsync(versionRetentionDays, ct);
             var removedActivity = await audit.CleanupExpiredAsync(activityRetentionDays, ct);
+            var removedPoolEntries = await pools.CleanupUsedEntriesAsync(poolSettings.UsedEntryRetentionDays, ct);
 
             _logger.LogInformation(
-                "History cleanup: removed {Versions} expired version row(s) (retention {VersionDays}d), {Activity} expired activity row(s) (retention {ActivityDays}d)",
-                removedVersions, versionRetentionDays, removedActivity, activityRetentionDays);
+                "History cleanup: removed {Versions} expired version row(s) (retention {VersionDays}d), {Activity} expired activity row(s) (retention {ActivityDays}d), {PoolEntries} used pool entry/entries (retention {PoolDays}d)",
+                removedVersions, versionRetentionDays, removedActivity, activityRetentionDays,
+                removedPoolEntries, poolSettings.UsedEntryRetentionDays);
         }
         catch (Exception ex)
         {

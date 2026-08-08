@@ -97,7 +97,7 @@ public class AiTemplateController : ControllerBase
         try
         {
             var result = await _aiTemplates.GenerateSlotAsync(template, slot, slotValues, mode, ct);
-            return Ok(new AiTemplateGenerateResponse(result.Content, result.Warnings));
+            return Ok(new AiTemplateGenerateResponse(result.Content, result.Warnings, result.PoolEntryId));
         }
         catch (AiServiceException ex)
         {

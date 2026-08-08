@@ -12,8 +12,17 @@ public enum AiTemplateMode
 public record AiTemplateSlot(string Id, string Name, int Index, int Count);
 
 /// <summary>The authored rules for one placeholder name. Rules holds free-text bullets passed
-/// to the model verbatim; the rest are the recognized typed prefixes.</summary>
-public record AiTemplateInstruction(string Name, List<string> Rules, string? Format, string? Example, int? MaxWords, int? MaxSentences);
+/// to the model verbatim; the rest are the recognized typed prefixes. When Pool is set, this
+/// placeholder is served from that named generation pool and the pool's own rules replace these
+/// (see GenerationPoolService).</summary>
+public record AiTemplateInstruction(
+    string Name,
+    List<string> Rules,
+    string? Format,
+    string? Example,
+    int? MaxWords,
+    int? MaxSentences,
+    string? Pool = null);
 
 /// <summary>One ordered piece of the template: either literal Markdown or a slot, never both.</summary>
 public record AiTemplateElement(string? LiteralText, AiTemplateSlot? Slot);
@@ -33,4 +42,6 @@ public record AiTemplateSlotValue(string Id, string Content, bool Locked);
 
 public record AiTemplateValidation(bool IsValid, List<string> Problems);
 
-public record AiTemplateSlotResult(string Content, List<string> Warnings);
+/// <summary>PoolEntryId is set only when the content came straight out of a generation pool -
+/// it's what the "forget this entry" action refers to.</summary>
+public record AiTemplateSlotResult(string Content, List<string> Warnings, int? PoolEntryId = null);

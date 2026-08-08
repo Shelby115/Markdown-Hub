@@ -21,6 +21,8 @@ public class AppDbContext : DbContext
     public DbSet<AuthenticationProvider> AuthenticationProviders => Set<AuthenticationProvider>();
     public DbSet<AuthenticationIdentity> AuthenticationIdentities => Set<AuthenticationIdentity>();
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<GenerationPool> GenerationPools => Set<GenerationPool>();
+    public DbSet<GenerationPoolEntry> GenerationPoolEntries => Set<GenerationPoolEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,5 +90,15 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<AuditLogEntry>()
             .HasIndex(a => a.Timestamp);
+
+        modelBuilder.Entity<GenerationPool>()
+            .HasIndex(p => p.Name).IsUnique();
+
+        // The content hash is what makes "forget this entry" permanent - a duplicate can never be
+        // inserted, whatever state the original ended up in.
+        modelBuilder.Entity<GenerationPoolEntry>()
+            .HasIndex(e => new { e.PoolId, e.ContentHash }).IsUnique();
+        modelBuilder.Entity<GenerationPoolEntry>()
+            .HasIndex(e => new { e.PoolId, e.Status });
     }
 }

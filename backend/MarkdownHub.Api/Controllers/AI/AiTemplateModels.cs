@@ -17,4 +17,4 @@ public record AiTemplateParseResponse(
 
 public record AiTemplateGenerateRequest(string TemplatePath, string SlotId, string Mode, List<AiTemplateSlotValue> Slots);
 
-public record AiTemplateGenerateResponse(string Content, List<string> Warnings);
+public record AiTemplateGenerateResponse(string Content, List<string> Warnings, int? PoolEntryId);

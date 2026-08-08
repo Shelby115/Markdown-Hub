@@ -1,9 +1,12 @@
+using Microsoft.EntityFrameworkCore;
+using MarkdownHub.Api.Data;
+using MarkdownHub.Api.Data.Entities;
 using MarkdownHub.Api.Services;
 using MarkdownHub.Api.Tests.Controllers;
 
 namespace MarkdownHub.Api.Tests.Services;
 
-public class AiTemplateServiceTests
+public class AiTemplateServiceTests : IDisposable
 {
     private const string Template = """
         # Adventure
@@ -25,13 +28,22 @@ public class AiTemplateServiceTests
         """;
 
     private readonly FakeAiService _ai = new();
+    private readonly AppDbContext _db;
+    private readonly GenerationPoolService _pools;
     private readonly AiTemplateService _sut;
     private readonly ParsedAiTemplate _template = AiTemplateParser.Parse(Template);
 
     public AiTemplateServiceTests()
     {
-        _sut = new AiTemplateService(_ai);
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        _db = new AppDbContext(options);
+        _pools = new GenerationPoolService(_db, _ai);
+        _sut = new AiTemplateService(_ai, _pools);
     }
+
+    public void Dispose() => _db.Dispose();
 
     private AiTemplateSlot Slot(string id) => _template.Slots.First(s => s.Id == id);
 
@@ -135,5 +147,97 @@ public class AiTemplateServiceTests
 
         await Assert.ThrowsAsync<AiServiceException>(
             () => _sut.GenerateSlotAsync(_template, Slot("Scene#1"), [], AiTemplateMode.Generate));
+    }
+
+    // --- Generation pools ---
+
+    private const string PooledTemplate = """
+        # Adventure
+
+        {{Interactible}}
+
+        ```ai-template
+        Interactible:
+        - Pool: Interactible
+        ```
+        """;
+
+    private async Task<ParsedAiTemplate> PooledAsync(bool poolExists = true, params string[] readyEntries)
+    {
+        if (poolExists)
+        {
+            var pool = await _pools.CreatePoolAsync("Interactible", "- One brief interactible.\n", 5, true);
+            foreach (var content in readyEntries)
+            {
+                _ai.Respond = (_, _) => content;
+                await _pools.GenerateEntryAsync(pool);
+            }
+        }
+        _ai.Respond = null;
+        return AiTemplateParser.Parse(PooledTemplate);
+    }
+
+    [Fact]
+    public async Task GenerateSlot_PooledSlot_IsServedFromThePoolWithoutCallingTheModel()
+    {
+        var template = await PooledAsync(true, "A rusted lantern hangs here.");
+        _ai.LastUserPrompt = null;
+
+        var result = await _sut.GenerateSlotAsync(template, template.Slots[0], [], AiTemplateMode.Generate);
+
+        Assert.Equal("A rusted lantern hangs here.", result.Content);
+        Assert.NotNull(result.PoolEntryId);
+        Assert.Null(_ai.LastUserPrompt);
+    }
+
+    [Fact]
+    public async Task GenerateSlot_EmptyPool_GeneratesLiveAndRecordsItSoItIsNotGeneratedAgain()
+    {
+        var template = await PooledAsync();
+        _ai.Respond = (_, _) => "A cracked bell sits in the corner.";
+
+        var result = await _sut.GenerateSlotAsync(template, template.Slots[0], [], AiTemplateMode.Generate);
+
+        Assert.Equal("A cracked bell sits in the corner.", result.Content);
+        Assert.Null(result.PoolEntryId); // nothing to forget - it was never a pooled entry
+        var pool = await _pools.FindPoolAsync("Interactible");
+        Assert.Null(await _pools.GenerateEntryAsync(pool!));
+    }
+
+    [Fact]
+    public async Task GenerateSlot_PooledSlot_UsesThePoolsOwnRulesNotTheTemplates()
+    {
+        await _pools.CreatePoolAsync("Interactible", "- Must mention rust.\n", 5, true);
+        var template = AiTemplateParser.Parse(PooledTemplate);
+        _ai.Respond = (_, _) => "A cracked bell sits in the corner.";
+
+        await _sut.GenerateSlotAsync(template, template.Slots[0], [], AiTemplateMode.Generate);
+
+        Assert.Contains("Must mention rust.", _ai.LastUserPrompt);
+    }
+
+    [Fact]
+    public async Task GenerateSlot_UnknownPoolName_FallsBackToOrdinaryGeneration()
+    {
+        var template = await PooledAsync(poolExists: false);
+        _ai.Respond = (_, _) => "A cracked bell sits in the corner.";
+
+        var result = await _sut.GenerateSlotAsync(template, template.Slots[0], [], AiTemplateMode.Generate);
+
+        Assert.Equal("A cracked bell sits in the corner.", result.Content);
+    }
+
+    [Fact]
+    public async Task GenerateSlot_ImproveOnAPooledSlot_RewritesInsteadOfDrawingAnotherEntry()
+    {
+        var template = await PooledAsync(true, "A rusted lantern hangs here.");
+        List<AiTemplateSlotValue> values = [new(template.Slots[0].Id, "A rusted lantern hangs here.", false)];
+        _ai.Respond = (_, _) => "A rusted lantern hangs from a bent nail.";
+
+        var result = await _sut.GenerateSlotAsync(template, template.Slots[0], values, AiTemplateMode.Improve);
+
+        Assert.Equal("A rusted lantern hangs from a bent nail.", result.Content);
+        Assert.Null(result.PoolEntryId);
+        Assert.Contains("CURRENT TEXT", _ai.LastUserPrompt);
     }
 }

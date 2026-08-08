@@ -86,6 +86,14 @@ public static class AiTemplateParser
         return counts;
     }
 
+    /// <summary>Parses a standalone set of rule bullets - a generation pool's prompt, which is
+    /// authored in the same syntax as one entry inside a template's ai-template block.</summary>
+    public static AiTemplateInstruction ParseInstruction(string name, string ruleLines)
+    {
+        var parsed = ParseInstructions($"{name}:\n{ruleLines}");
+        return parsed.GetValueOrDefault(name) ?? new AiTemplateInstruction(name, [], null, null, null, null);
+    }
+
     private static Dictionary<string, AiTemplateInstruction> ParseInstructions(string body)
     {
         if (body.Length > MaxInstructionChars)
@@ -100,6 +108,7 @@ public static class AiTemplateParser
         string? example = null;
         int? maxWords = null;
         int? maxSentences = null;
+        string? pool = null;
 
         void Commit()
         {
@@ -107,12 +116,13 @@ public static class AiTemplateParser
             {
                 return;
             }
-            result[currentName] = new AiTemplateInstruction(currentName, rules, format, example, maxWords, maxSentences);
+            result[currentName] = new AiTemplateInstruction(currentName, rules, format, example, maxWords, maxSentences, pool);
             rules = [];
             format = null;
             example = null;
             maxWords = null;
             maxSentences = null;
+            pool = null;
         }
 
         foreach (var line in body.Replace("\r\n", "\n").Split('\n'))
@@ -136,6 +146,10 @@ public static class AiTemplateParser
                 else if (TryTakePrefix(rule, "Max sentences:", out var sentencesValue) && int.TryParse(sentencesValue, out var sentences))
                 {
                     maxSentences = sentences;
+                }
+                else if (TryTakePrefix(rule, "Pool:", out var poolValue))
+                {
+                    pool = poolValue;
                 }
                 else
                 {

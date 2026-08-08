@@ -4,9 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AiTemplateParseResult } from "../api/client";
 import { AiTemplatePanel } from "./AiTemplatePanel";
 
-const { aiTemplateGenerateMock, getAiAssistantStatusMock } = vi.hoisted(() => ({
+const { aiTemplateGenerateMock, getAiAssistantStatusMock, aiPoolForgetEntryMock } = vi.hoisted(() => ({
   aiTemplateGenerateMock: vi.fn(),
   getAiAssistantStatusMock: vi.fn(),
+  aiPoolForgetEntryMock: vi.fn(),
 }));
 
 vi.mock("../api/client", async () => {
@@ -16,6 +17,7 @@ vi.mock("../api/client", async () => {
     api: {
       aiTemplateGenerate: aiTemplateGenerateMock,
       getAiAssistantStatus: getAiAssistantStatusMock,
+      aiPoolForgetEntry: aiPoolForgetEntryMock,
     },
   };
 });
@@ -70,6 +72,49 @@ describe("AiTemplatePanel", () => {
       Promise.resolve({ content: `${slotId} text`, warnings: [] })
     );
     getAiAssistantStatusMock.mockReset().mockResolvedValue({ available: true });
+    aiPoolForgetEntryMock.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("offers Forget only for content that came from a generation pool", async () => {
+    aiTemplateGenerateMock.mockImplementation((_path, slotId) =>
+      Promise.resolve({
+        content: `${slotId} text`,
+        warnings: [],
+        poolEntryId: slotId === "Interactible#1" ? 7 : null,
+      })
+    );
+    await renderGenerated();
+
+    expect(screen.getAllByLabelText("Forget this entry")).toHaveLength(1);
+  });
+
+  it("Forget rejects the entry and immediately draws a replacement", async () => {
+    const user = userEvent.setup();
+    aiTemplateGenerateMock.mockImplementation((_path, slotId) =>
+      Promise.resolve({ content: `${slotId} text`, warnings: [], poolEntryId: 7 })
+    );
+    await renderGenerated();
+
+    aiTemplateGenerateMock.mockResolvedValueOnce({ content: "a better one", warnings: [], poolEntryId: 8 });
+    await user.click(screen.getAllByLabelText("Forget this entry")[0]);
+
+    await waitFor(() => expect(slotBox("Scene#1").value).toBe("a better one"));
+    expect(aiPoolForgetEntryMock).toHaveBeenCalledWith(7);
+  });
+
+  it("a failed Forget leaves the content alone and does not reroll", async () => {
+    const user = userEvent.setup();
+    aiTemplateGenerateMock.mockImplementation((_path, slotId) =>
+      Promise.resolve({ content: `${slotId} text`, warnings: [], poolEntryId: 7 })
+    );
+    await renderGenerated();
+
+    aiPoolForgetEntryMock.mockRejectedValueOnce(new Error(JSON.stringify({ message: "Entry is gone." })));
+    await user.click(screen.getAllByLabelText("Forget this entry")[0]);
+
+    expect(await screen.findByText("Entry is gone.")).toBeInTheDocument();
+    expect(slotBox("Scene#1").value).toBe("Scene#1 text");
+    expect(aiTemplateGenerateMock).not.toHaveBeenCalled();
   });
 
   it("shows the Ollama-not-found message instead of the slots when AI is unavailable", async () => {

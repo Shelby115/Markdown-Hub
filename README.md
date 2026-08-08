@@ -59,6 +59,8 @@ notices external changes and reindexes them, and your notes are just files.
   instance. Nothing is ever sent to a third-party API.
 - AI Templates: turn a template into a generator whose sections you can reroll,
   improve, and lock individually. See below.
+- Generation pools: pre-generate template content in the background on a schedule you
+  choose, so filling a placeholder is instant instead of a wait.
 
 ## Prerequisites
 
@@ -369,6 +371,51 @@ Generation is one model call per placeholder, so a large template takes a while 
 model — `Ai:Ollama:TimeoutSeconds` applies to each section, not the whole document. Progress
 appears section by section and can be stopped partway; whatever generated already is kept.
 Closing the panel discards the session, so save before you walk away.
+
+### Generation pools (pre-generating in the background)
+
+The wait above is the point of generation pools. A pool is a named library of pre-written
+content for one kind of placeholder — interactibles, NPC names, rumours. A background service
+fills it while nothing else is happening, and a template that uses it gets an entry straight
+out of the database instead of waiting on the model.
+
+Create one under Admin → **AI generation pools**: give it a name, a prompt (the same bullet
+rules a template's instruction block uses, `Format:`/`Example:`/`Max words:`/`Max sentences:`
+included), and how many entries to keep ready. Tick "Generate entries for this pool in the
+background" when you're happy with the prompt — nothing runs against Ollama until you do.
+**Generate one now** produces a single entry immediately, which is the quickest way to see
+whether a prompt edit did what you wanted.
+
+Point a template at the pool by adding one line to that placeholder:
+
+````markdown
+```ai-template
+Interactible:
+- Pool: Interactible
+```
+````
+
+The pool's prompt then replaces the template's own rules for that placeholder. Pool entries
+are written without knowing anything about the rest of the page, so pools suit self-contained
+items rather than sections that have to match their surroundings — keep those as ordinary
+placeholders. If the pool runs dry, or the name doesn't match any pool, generation falls back
+to a live model call, so a template never breaks.
+
+Every entry is handed out at most once. If one is bad, **🚫** on that section forgets it: it's
+never shown again, and never regenerated either. Admins can do the same from the pool's entry
+list.
+
+The background generator has app-wide controls in the same admin section:
+
+- **Pause / Resume**, taking effect on the next tick without a restart.
+- An **allowed window** (`22:00`–`06:00` UTC, say) so generation only happens overnight. Times
+  are UTC and the current server time is shown next to them; leave both blank to allow any
+  hour. A window whose end is earlier than its start wraps past midnight.
+- **Seconds between entries** — the generator adds at most one entry per pool per tick, so a
+  longer interval leaves more of the machine free.
+- **Keep used entries (days)** — how long spent entries are retained. They exist only so the
+  same text isn't generated twice; the daily 04:00 UTC cleanup removes expired ones. Forgotten
+  entries are never removed, which is what makes forgetting permanent.
 
 ## Updating
 

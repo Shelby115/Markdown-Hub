@@ -40,9 +40,11 @@ builder.Services.AddScoped<VersionService>();
 builder.Services.AddScoped<HistorySettingsService>();
 builder.Services.AddScoped<IAiService, OllamaAiService>();
 builder.Services.AddScoped<AiTemplateService>();
+builder.Services.AddScoped<GenerationPoolService>();
 builder.Services.AddHostedService<HubFileWatcherService>();
 builder.Services.AddHostedService<ScheduledBackupHostedService>();
 builder.Services.AddHostedService<HistoryCleanupHostedService>();
+builder.Services.AddHostedService<PoolFillHostedService>();
 
 // --- Auth: local username/password is the foundation; OIDC/OAuth2 providers are optional
 // linked identities the server authenticates through on the user's behalf (see Auth.md). The

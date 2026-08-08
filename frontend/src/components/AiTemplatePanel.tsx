@@ -19,6 +19,8 @@ interface SlotState {
   busy: boolean;
   warnings: string[];
   error: string | null;
+  /** Set when this content came straight from a generation pool, so it can be rejected. */
+  poolEntryId: number | null;
 }
 
 export function AiTemplatePanel({
@@ -38,7 +40,15 @@ export function AiTemplatePanel({
   onSave: (content: string, pagePath: string) => void;
 }) {
   const [slots, setSlots] = useState<SlotState[]>(() =>
-    parsed.slots.map((s) => ({ ...s, content: "", locked: false, busy: false, warnings: [], error: null }))
+    parsed.slots.map((s) => ({
+      ...s,
+      content: "",
+      locked: false,
+      busy: false,
+      warnings: [],
+      error: null,
+      poolEntryId: null,
+    }))
   );
   const [variables, setVariables] = useState<Record<string, string>>(() =>
     Object.fromEntries(parsed.fillInVariables.map((v) => [v, ""]))
@@ -71,12 +81,30 @@ export function AiTemplatePanel({
     try {
       const result = await api.aiTemplateGenerate(templatePath, id, mode, currentValues());
       // Content is only replaced on success - a failed reroll must never destroy a good result.
-      updateSlot(id, { content: result.content, warnings: result.warnings, busy: false });
+      updateSlot(id, {
+        content: result.content,
+        warnings: result.warnings,
+        busy: false,
+        // Improve rewrites the text, so it no longer *is* the pool entry it started from.
+        poolEntryId: mode === "Generate" ? result.poolEntryId : null,
+      });
       return true;
     } catch (err) {
       updateSlot(id, { busy: false, error: extractErrorMessage(err, "The AI request failed.") });
       return false;
     }
+  };
+
+  /** Rejects a pre-generated entry for good, then fills the slot with a fresh one. */
+  const forgetAndReroll = async (id: string, entryId: number) => {
+    updateSlot(id, { busy: true, error: null });
+    try {
+      await api.aiPoolForgetEntry(entryId);
+    } catch (err) {
+      updateSlot(id, { busy: false, error: extractErrorMessage(err, "Could not forget that entry.") });
+      return;
+    }
+    await generateSlot(id, "Generate");
   };
 
   const generateMany = async (ids: string[]) => {
@@ -179,6 +207,17 @@ export function AiTemplatePanel({
                           >
                             ✨
                           </button>
+                          {state.poolEntryId !== null && (
+                            <button
+                              className="icon-button"
+                              aria-label="Forget this entry"
+                              title="Forget this entry - never show it again"
+                              disabled={busy || state.locked}
+                              onClick={() => void forgetAndReroll(slot.id, state.poolEntryId!)}
+                            >
+                              🚫
+                            </button>
+                          )}
                           <button
                             className="icon-button"
                             aria-label={state.locked ? "Unlock" : "Lock"}

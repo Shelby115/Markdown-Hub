@@ -127,4 +127,43 @@ public class AiTemplateParserTests
 
         Assert.Throws<AiTemplateParseException>(() => AiTemplateParser.Parse(template));
     }
+
+    [Fact]
+    public void Parse_PoolPrefix_NamesTheGenerationPoolAndIsNotTreatedAsARule()
+    {
+        var template = "{{Interactible}}\n\n```ai-template\nInteractible:\n- Pool: Dungeon Interactible\n- Keep it brief.\n```";
+
+        var instruction = AiTemplateParser.Parse(template).Instructions["Interactible"];
+
+        Assert.Equal("Dungeon Interactible", instruction.Pool);
+        Assert.Equal(["Keep it brief."], instruction.Rules);
+    }
+
+    [Fact]
+    public void Parse_NoPoolPrefix_LeavesPoolUnset()
+    {
+        var template = "{{Scene}}\n\n```ai-template\nScene:\n- Random biome.\n```";
+
+        Assert.Null(AiTemplateParser.Parse(template).Instructions["Scene"].Pool);
+    }
+
+    [Fact]
+    public void ParseInstruction_ReadsAPoolsOwnPromptWithTheSameRecognizedPrefixes()
+    {
+        var instruction = AiTemplateParser.ParseInstruction(
+            "Interactible", "- One brief interactible.\n- Format: **Name**. One sentence.\n- Max words: 30\n");
+
+        Assert.Equal("Interactible", instruction.Name);
+        Assert.Equal(["One brief interactible."], instruction.Rules);
+        Assert.Equal("**Name**. One sentence.", instruction.Format);
+        Assert.Equal(30, instruction.MaxWords);
+    }
+
+    [Fact]
+    public void ParseInstruction_EmptyPrompt_ReturnsAnInstructionWithNoRules()
+    {
+        var instruction = AiTemplateParser.ParseInstruction("Interactible", "");
+
+        Assert.Empty(instruction.Rules);
+    }
 }

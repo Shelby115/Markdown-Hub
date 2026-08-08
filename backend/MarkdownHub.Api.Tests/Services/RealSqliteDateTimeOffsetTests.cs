@@ -71,6 +71,25 @@ public class RealSqliteDateTimeOffsetTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GenerationPoolService_CleanupUsedEntriesAsync_WorksAgainstRealSqlite()
+    {
+        _db.GenerationPoolEntries.Add(new GenerationPoolEntry
+        {
+            PoolId = 1, Content = "old", ContentHash = "A",
+            Status = GenerationPoolEntryStatus.Used, SpentAtUtc = DateTimeOffset.UtcNow.AddDays(-100),
+        });
+        _db.GenerationPoolEntries.Add(new GenerationPoolEntry
+        {
+            PoolId = 1, Content = "recent", ContentHash = "B",
+            Status = GenerationPoolEntryStatus.Used, SpentAtUtc = DateTimeOffset.UtcNow.AddDays(-1),
+        });
+        await _db.SaveChangesAsync();
+        var sut = new GenerationPoolService(_db, new Controllers.FakeAiService());
+
+        Assert.Equal(1, await sut.CleanupUsedEntriesAsync(retentionDays: 90));
+    }
+
+    [Fact]
     public async Task AuditLogService_LogGroupedAsync_WorksAgainstRealSqlite()
     {
         var sut = new AuditLogService(_db, new Microsoft.AspNetCore.Http.HttpContextAccessor());
