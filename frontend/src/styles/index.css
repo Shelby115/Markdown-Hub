@@ -321,6 +321,11 @@ button:disabled { opacity: 0.6; cursor: default; }
   margin-top: 0.25rem;
 }
 
+.tree-create-actions { display: flex; gap: 0.35rem; margin-top: 0.25rem; }
+.tree-create-actions button { flex: 1; font-size: 0.78rem; padding: 0.35rem 0.5rem; }
+.tree-create-cancel { background: var(--ink-800); color: var(--paper); }
+.tree-create-cancel:hover { background: var(--ink-600); }
+
 /* While any file is being dragged, folder rows grow a bit so there's more margin for error
    when aiming for one - the row itself is the drop target, not just its text. */
 .file-tree.dragging-active .tree-folder { padding: 0.55rem 0.4rem; }
@@ -981,5 +986,51 @@ button:disabled { opacity: 0.6; cursor: default; }
   border: 1px solid var(--content-border);
   background: var(--content-bg);
   color: var(--content-text);
+}
+
+/* Dimmed scrim behind an open mobile drawer (sidebar or AI assistant panel) - tapping it
+   closes whichever panel is open. Inert on wider screens: display:none means it's never
+   painted or hit-tested there, so it can stay unconditionally mounted in JSX. */
+.mobile-backdrop { display: none; }
+
+@media (max-width: 768px) {
+  .mobile-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 45;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    cursor: default;
+  }
+  .mobile-backdrop:hover { background: rgba(0, 0, 0, 0.45); }
+
+  /* Below this width, the sidebar becomes a slide-in overlay above the content instead of
+     a permanent grid column - a fixed-width column left no room for the editor on a phone. */
+  .app-shell,
+  .app-shell.sidebar-collapsed {
+    display: block;
+    grid-template-columns: none;
+  }
+  .content { width: 100%; }
+
+  .app-shell .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 85vw;
+    max-width: 320px;
+    z-index: 60;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
+    transform: translateX(0);
+    transition: transform 200ms ease;
+  }
+  .app-shell.sidebar-collapsed .sidebar {
+    display: flex;
+    transform: translateX(-100%);
+  }
 }
 .admin-history-settings-form div { display: flex; gap: 0.5rem; }

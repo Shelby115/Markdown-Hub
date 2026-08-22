@@ -437,14 +437,32 @@ function CreateFileInput({ folderPath, focusTemplate }: { folderPath: string; fo
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Guards against a double-submit: tapping the Create button on a touch device can fire a
+  // blur (with an unreliable relatedTarget) on the name input just before the button's own
+  // click, which would otherwise call commitCreate twice.
+  const settledRef = useRef(false);
+  // The template picker is only shown for the explicit "New page from template" entry point
+  // (focusTemplate) - the quick "+" button always creates a blank page, no extra field to
+  // fumble through on a phone keyboard.
+  const showTemplateSelect = !!focusTemplate && ctx.templates.length > 0;
 
   useEffect(() => {
-    if (focusTemplate && ctx.templates.length > 0) selectRef.current?.focus();
+    if (showTemplateSelect) selectRef.current?.focus();
     else inputRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const commit = () => ctx.commitCreate(folderPath, name, templateChoice || undefined);
+  const commit = () => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    ctx.commitCreate(folderPath, name, templateChoice || undefined);
+  };
+
+  const cancel = () => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    ctx.cancelCreate();
+  };
 
   return (
     <div
@@ -465,10 +483,10 @@ function CreateFileInput({ folderPath, focusTemplate }: { folderPath: string; fo
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
-          if (e.key === "Escape") ctx.cancelCreate();
+          if (e.key === "Escape") cancel();
         }}
       />
-      {ctx.templates.length > 0 && (
+      {showTemplateSelect && (
         <select
           ref={selectRef}
           className="tree-template-select"
@@ -484,6 +502,17 @@ function CreateFileInput({ folderPath, focusTemplate }: { folderPath: string; fo
           ))}
         </select>
       )}
+      <div className="tree-create-actions">
+        {/* preventDefault on mousedown keeps focus on the name input (no blur fires at all),
+            so tapping this button never races with the onBlur auto-commit above - the button's
+            own onClick is the single source of truth for finishing the form. */}
+        <button type="button" className="tree-create-confirm" onMouseDown={(e) => e.preventDefault()} onClick={commit}>
+          Create
+        </button>
+        <button type="button" className="tree-create-cancel" onMouseDown={(e) => e.preventDefault()} onClick={cancel}>
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

@@ -69,6 +69,70 @@ export default function App() {
     localStorage.setItem(ASSISTANT_COLLAPSED_KEY, String(assistantCollapsed));
   }, [assistantCollapsed]);
 
+  const isMobileViewport = () => window.matchMedia("(max-width: 768px)").matches;
+
+  // On a phone the sidebar and AI panel are full-width-ish overlays (see index.css), so having
+  // both open at once just buries the content between two drawers - opening one closes the
+  // other. Desktop keeps its existing side-by-side behavior untouched.
+  const openSidebar = () => {
+    setSidebarCollapsed(false);
+    if (isMobileViewport()) setAssistantCollapsed(true);
+  };
+  const closeSidebar = () => setSidebarCollapsed(true);
+  const openAssistant = () => {
+    setAssistantCollapsed(false);
+    if (isMobileViewport()) setSidebarCollapsed(true);
+  };
+  const closeAssistant = () => setAssistantCollapsed(true);
+
+  // Swipe gestures for the mobile drawers: an edge-swipe opens the nearest closed panel, and a
+  // swipe anywhere closes whichever panel is currently open (it covers most of the screen, so
+  // "anywhere" is effectively "on the open panel"). Listens on the capture phase so it still
+  // sees the gesture even if CodeMirror or another child stops propagation on the bubble phase.
+  useEffect(() => {
+    const EDGE_ZONE = 24;
+    const SWIPE_THRESHOLD = 60;
+    let startX = 0;
+    let startY = 0;
+    let tracking = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        tracking = false;
+        return;
+      }
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      tracking = true;
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (!tracking) return;
+      tracking = false;
+      if (!isMobileViewport()) return;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
+
+      if (dx > 0) {
+        if (!assistantCollapsed) closeAssistant();
+        else if (sidebarCollapsed && startX < EDGE_ZONE) openSidebar();
+      } else {
+        if (!sidebarCollapsed) closeSidebar();
+        else if (assistantCollapsed && startX > window.innerWidth - EDGE_ZONE) openAssistant();
+      }
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+    document.addEventListener("touchend", onTouchEnd, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart, { capture: true });
+      document.removeEventListener("touchend", onTouchEnd, { capture: true });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarCollapsed, assistantCollapsed]);
+
   // Applies regardless of auth/route (including the unauthenticated /published/:slug view), so
   // every visitor - not just signed-in users - gets a themed page defaulting to their system
   // preference. Only signed-in users see the toggle buttons that set an explicit override.
@@ -202,11 +266,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-header-left">
-            <button
-              className="icon-button sidebar-collapse-button"
-              title="Hide sidebar"
-              onClick={() => setSidebarCollapsed(true)}
-            >
+            <button className="icon-button sidebar-collapse-button" title="Hide sidebar" onClick={closeSidebar}>
               «
             </button>
             <span className="brand">Markdown Hub</span>
@@ -282,11 +342,8 @@ export default function App() {
           )}
         </div>
       </aside>
-      <button
-        className="icon-button sidebar-expand-button"
-        title="Show sidebar"
-        onClick={() => setSidebarCollapsed(false)}
-      >
+      {!sidebarCollapsed && <button className="mobile-backdrop" aria-label="Close sidebar" onClick={closeSidebar} />}
+      <button className="icon-button sidebar-expand-button" title="Show sidebar" onClick={openSidebar}>
         »
       </button>
       <main className="content">
@@ -302,10 +359,13 @@ export default function App() {
           {isAdmin && <Route path="/ai-lab" element={<AiLab />} />}
         </Routes>
       </main>
+      {!assistantCollapsed && (
+        <button className="mobile-backdrop" aria-label="Close AI assistant" onClick={closeAssistant} />
+      )}
       <AiAssistantPanel
         currentPagePath={activePath}
         collapsed={assistantCollapsed}
-        onCollapsedChange={setAssistantCollapsed}
+        onCollapsedChange={(collapsed) => (collapsed ? closeAssistant() : openAssistant())}
         onContentAddedToCurrentPage={() => setReloadNonce((n) => n + 1)}
       />
     </div>
