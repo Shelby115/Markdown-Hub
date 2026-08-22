@@ -69,6 +69,8 @@ export default function App() {
     localStorage.setItem(ASSISTANT_COLLAPSED_KEY, String(assistantCollapsed));
   }, [assistantCollapsed]);
 
+  const sidebarRef = useRef<HTMLElement>(null);
+
   const isMobileViewport = () => window.matchMedia("(max-width: 768px)").matches;
 
   // On a phone the sidebar and AI panel are full-width-ish overlays (see index.css), so having
@@ -85,10 +87,16 @@ export default function App() {
   };
   const closeAssistant = () => setAssistantCollapsed(true);
 
-  // Swipe gestures for the mobile drawers: an edge-swipe opens the nearest closed panel, and a
-  // swipe anywhere closes whichever panel is currently open (it covers most of the screen, so
-  // "anywhere" is effectively "on the open panel"). Listens on the capture phase so it still
-  // sees the gesture even if CodeMirror or another child stops propagation on the bubble phase.
+  // Swipe gestures for the mobile drawers. Each panel gets its own two zones, based on where the
+  // panel actually sits on screen rather than swipe direction alone:
+  //   - closed: a swipe starting in that panel's edge sliver pulls it out.
+  //   - open: a swipe starting anywhere on the panel itself (it covers most of the screen) sends
+  //     it back off.
+  // Direction still has to match (rightward to reveal the left panel or dismiss the right one,
+  // leftward for the mirror case), but gating on start position too is what keeps "swipe from the
+  // right" from being swallowed by "the left panel happens to be open" and closing that instead.
+  // Listens on the capture phase so it still sees the gesture even if CodeMirror or another child
+  // stops propagation on the bubble phase.
   useEffect(() => {
     const EDGE_ZONE = 24;
     const SWIPE_THRESHOLD = 60;
@@ -115,11 +123,16 @@ export default function App() {
       const dy = touch.clientY - startY;
       if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
 
+      const sidebarWidth = sidebarRef.current?.getBoundingClientRect().width ?? 0;
+      const assistantWidth = document.querySelector(".ai-assistant-panel")?.getBoundingClientRect().width ?? 0;
+
       if (dx > 0) {
-        if (!assistantCollapsed) closeAssistant();
+        // Rightward: dismiss the AI panel back to the right, or pull the sidebar in from the left.
+        if (!assistantCollapsed && startX >= window.innerWidth - assistantWidth) closeAssistant();
         else if (sidebarCollapsed && startX < EDGE_ZONE) openSidebar();
       } else {
-        if (!sidebarCollapsed) closeSidebar();
+        // Leftward: dismiss the sidebar back to the left, or pull the AI panel in from the right.
+        if (!sidebarCollapsed && startX <= sidebarWidth) closeSidebar();
         else if (assistantCollapsed && startX > window.innerWidth - EDGE_ZONE) openAssistant();
       }
     };
@@ -263,7 +276,7 @@ export default function App() {
 
   return (
     <div className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
-      <aside className="sidebar">
+      <aside className="sidebar" ref={sidebarRef}>
         <div className="sidebar-header">
           <div className="sidebar-header-left">
             <button className="icon-button sidebar-collapse-button" title="Hide sidebar" onClick={closeSidebar}>

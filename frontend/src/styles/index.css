@@ -705,9 +705,27 @@ button:disabled { opacity: 0.6; cursor: default; }
 }
 .editor-toolbar-right-group { display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
 .editor-toolbar-right { display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 0.75rem; }
-.editor-toolbar-secondary-row { display: flex; justify-content: flex-end; }
+.editor-toolbar-secondary-row { display: flex; justify-content: flex-end; min-width: 0; }
 .save-status { font-size: 0.8rem; color: var(--content-text-muted); }
 .save-status-error { color: var(--content-err-fg); }
+
+.editor-toolbar-menu-wrap { position: relative; }
+.editor-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--content-bg);
+  border: 1px solid var(--content-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem;
+  min-width: 160px;
+  gap: 0.15rem;
+}
+.editor-menu button { width: 100%; text-align: left; }
 
 /* Live-preview markdown editor: content renders styled by default; raw syntax
    marks (**, #, [[ ]], etc, tagged .cm-md-mark-hidden) only reveal on the active line. */
@@ -915,7 +933,15 @@ button:disabled { opacity: 0.6; cursor: default; }
   40% { opacity: 1; transform: translateY(-0.2em); }
 }
 
-.publish-link { font-size: 0.72rem; color: var(--content-text-muted); white-space: nowrap; }
+.publish-link {
+  font-size: 0.72rem;
+  color: var(--content-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: inline-block;
+}
 .publish-link a { color: var(--content-accent); }
 
 .template-toggle { display: flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--content-text-muted); cursor: pointer; }
@@ -1032,5 +1058,20 @@ button:disabled { opacity: 0.6; cursor: default; }
     display: flex;
     transform: translateX(-100%);
   }
+
+  /* The desktop reading margin (2.5rem/3rem) leaves almost nothing for an editor on a phone-width
+     screen, and was the main reason a short title like "Session 3" wrapped to two lines - it was
+     fighting the toolbar's buttons for a sliver of remaining width. */
+  .content { padding: 1rem 1.1rem; }
+  .editor-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .editor-toolbar h1 { font-size: 1.5rem; }
+  .editor-toolbar-right-group { width: 100%; align-items: flex-start; }
+  .editor-toolbar-right { width: 100%; justify-content: flex-start; }
+  .editor-toolbar-secondary-row { justify-content: flex-start; }
+  .editor-menu { right: auto; left: 0; }
 }
 .admin-history-settings-form div { display: flex; gap: 0.5rem; }

@@ -6,6 +6,7 @@ import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AiTemplateParseResult, api, PageContent } from "../api/client";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { toPageUrl } from "../pageUrl";
 import { AiTemplatePanel } from "./AiTemplatePanel";
 import { liveMarkdownPreview } from "./liveMarkdown";
@@ -41,6 +42,21 @@ export function Editor({
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<AiTemplateParseResult | null>(null);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+
+  // On a phone, History/Generate/Published/Template are tucked behind a "⋮" menu instead of
+  // sitting in the toolbar row - four buttons alongside the page title left no room for either.
+  const isMobile = useIsMobile();
+  const [toolbarMenuOpen, setToolbarMenuOpen] = useState(false);
+  const toolbarMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!toolbarMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (toolbarMenuRef.current && !toolbarMenuRef.current.contains(e.target as Node)) setToolbarMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [toolbarMenuOpen]);
 
   // Refs (rather than state) for values the debounce/flush logic needs without
   // re-running effects on every keystroke.
@@ -206,6 +222,56 @@ export function Editor({
     [onImagePaste, navigate, currentFolder]
   );
 
+  const historyButton = (
+    <button
+      className="secondary"
+      onClick={() => {
+        setToolbarMenuOpen(false);
+        setHistoryOpen(true);
+      }}
+    >
+      History
+    </button>
+  );
+  const generateButton = isTemplate && draft.includes("```ai-template") && (
+    <button
+      className="secondary"
+      disabled={generateBusy}
+      onClick={() => {
+        setToolbarMenuOpen(false);
+        void startGenerating();
+      }}
+    >
+      ✨ Generate
+    </button>
+  );
+  const publishedButton = (
+    <button
+      className={`secondary template-toggle-button${isPublished ? " template-toggle-active" : ""}`}
+      disabled={publishBusy}
+      onClick={() => {
+        setToolbarMenuOpen(false);
+        void togglePublish();
+      }}
+      aria-pressed={isPublished}
+    >
+      {isPublished ? "☑" : "☐"} Published
+    </button>
+  );
+  const templateButton = (
+    <button
+      className={`secondary template-toggle-button${isTemplate ? " template-toggle-active" : ""}`}
+      disabled={templateBusy}
+      onClick={() => {
+        setToolbarMenuOpen(false);
+        void toggleTemplate();
+      }}
+      aria-pressed={isTemplate}
+    >
+      {isTemplate ? "☑" : "☐"} Template
+    </button>
+  );
+
   return (
     <div className="editor">
       <div className="editor-toolbar">
@@ -220,30 +286,28 @@ export function Editor({
                 ↷
               </button>
             </div>
-            <button className="secondary" onClick={() => setHistoryOpen(true)}>
-              History
-            </button>
-            {isTemplate && draft.includes("```ai-template") && (
-              <button className="secondary" disabled={generateBusy} onClick={() => void startGenerating()}>
-                ✨ Generate
-              </button>
+            {isMobile ? (
+              <div className="editor-toolbar-menu-wrap" ref={toolbarMenuRef}>
+                <button className="icon-button" title="Page actions" onClick={() => setToolbarMenuOpen((v) => !v)}>
+                  ⋮
+                </button>
+                {toolbarMenuOpen && (
+                  <div className="editor-menu">
+                    {historyButton}
+                    {generateButton}
+                    {publishedButton}
+                    {templateButton}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {historyButton}
+                {generateButton}
+                {publishedButton}
+                {templateButton}
+              </>
             )}
-            <button
-              className={`secondary template-toggle-button${isPublished ? " template-toggle-active" : ""}`}
-              disabled={publishBusy}
-              onClick={togglePublish}
-              aria-pressed={isPublished}
-            >
-              {isPublished ? "☑" : "☐"} Published
-            </button>
-            <button
-              className={`secondary template-toggle-button${isTemplate ? " template-toggle-active" : ""}`}
-              disabled={templateBusy}
-              onClick={toggleTemplate}
-              aria-pressed={isTemplate}
-            >
-              {isTemplate ? "☑" : "☐"} Template
-            </button>
             <div className="save-status">
               {saveState === "saving" && "Saving…"}
               {saveState === "saved" && "Saved"}
